@@ -8,6 +8,12 @@
   "title": "示例需求",
   "status": "completed",
   "selection_reason": "高优先级且实现路径明确",
+  "necessity_assessment": {
+    "status": "partially_done",
+    "reason": "已有基础查询，仍缺少状态去重",
+    "evidence": ["src/service.py:120"],
+    "remaining_criteria": ["已处理需求不得重复执行"]
+  },
   "repository": "D:\\workspace\\example",
   "branch": "main",
   "changes": ["修改内容摘要"],

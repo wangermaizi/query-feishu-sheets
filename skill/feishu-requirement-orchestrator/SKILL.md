@@ -1,6 +1,6 @@
 ---
 name: feishu-requirement-orchestrator
-description: Read software requirements from a configured Feishu Sheet or Bitable, assess and rank them, implement the highest-ranked eligible item after an explicit branch-choice checkpoint, coordinate one primary implementation agent and three independent review agents, and automatically post the final reviewed result to a pre-authorized Feishu group. Use for scheduled daily requirement processing or when the user asks to analyze, execute, review, or report requirements stored in Feishu.
+description: Read software requirements from a configured Feishu Sheet or Bitable, assess and rank them, verify from repository evidence whether each leading candidate is already implemented or still necessary, implement the highest-ranked necessary item after an explicit branch-choice checkpoint, coordinate one primary implementation agent and three independent review agents, and automatically post the final reviewed result to a pre-authorized Feishu group. Use for scheduled daily requirement processing or when the user asks to analyze, execute, review, or report requirements stored in Feishu.
 ---
 
 # 飞书需求自动执行
@@ -34,21 +34,68 @@ description: Read software requirements from a configured Feishu Sheet or Bitabl
 ## 查询与选择
 
 1. 运行 `credential list` 和 `profile list`，不要读取凭证文件。
-2. 使用已配置 profile 查询需求。链接为 `/sheets/` 或 `/base/` 时自动分流；`/wiki/` 要求直接链接。
-3. 排除 `state.json` 中 `awaiting_branch_choice`、`in_progress` 或 `reported` 的需求。
+2. 按“解析需求表名称”规则确定唯一 profile，再查询需求。链接为 `/sheets/` 或 `/base/` 时自动分流；`/wiki/` 要求直接链接。
+3. 排除 `state.json` 中 `awaiting_branch_choice`、`needs_confirmation`、`in_progress`、`reported`、`completed`、`obsolete`、`duplicate` 或 `skipped` 的需求。
 4. 对每条候选生成结构化评估：业务优先级、影响、紧急度、实现容易度、风险、阻塞项和信息完整性。
-5. 运行 `rank_requirements.py` 校验评估并选择一条需求。没有可执行项时输出队列摘要并结束，不调用代码执行或群发布。
+5. 运行 `rank_requirements.py` 校验评估并生成候选队列。没有可执行项时输出队列摘要并结束，不调用代码执行或群发布。
 
 ```powershell
 uv run <skill-dir>\scripts\query_sheet.py query --profile "requirements"
 uv run <skill-dir>\scripts\rank_requirements.py --input "评估JSON绝对路径"
 ```
 
+## 解析需求表名称
+
+用户提供需求表名称、要求切换需求表，或当前配置包含多个 profile 时，先运行：
+
+```powershell
+uv run <skill-dir>\scripts\profile_selector.py resolve --name "用户说的表名"
+```
+
+结合全部 profile 的 `profile_id`、`display_name`、`aliases` 和 `description` 按以下顺序判断：
+
+1. 精确匹配 `profile_id`。
+2. 精确或规范化匹配 `display_name`、`aliases`，忽略大小写、空白、标点和“需求表/表格/表”等通用后缀。
+3. 判断名称包含关系、关键词和业务语义是否指向同一张表。不要只按字符串相似度决定。
+
+只有一个可信候选时，明确告知用户“已解析为 `display_name`（`profile_id`）”并使用该 profile。存在两个或更多文本或语义都合理的候选时，展示每个候选的 `display_name`、`profile_id`、别名、用途和默认工作表/数据表，暂停让用户选择。没有可信候选时列出全部可用 profile 并询问。确认唯一 profile 前不得查询需求、修改默认 profile 或继续后续流程。
+
+用户说“本次使用”时只在当前调用传递 `--profile`。用户说“切换到”“以后使用”或“设为默认”时，在唯一解析后执行：
+
+```powershell
+uv run <skill-dir>\scripts\profile_selector.py switch --profile-id "profile-id"
+```
+
+不要根据相似群名、飞书工作表标签或 URL 猜 profile；需求表配置名与 profile 内部的 `default_sheet` / `default_table` 是不同概念。
+
+## 实现状态与必要性核验
+
+从候选队列第一条开始，在询问分支前只读检查目标仓库。查看相关代码、测试、配置、文档和 `git log`，逐条对照验收标准，并给出以下唯一结论之一：
+
+- `not_started`：没有实现证据，且需求仍适用；进入分支选择。
+- `partially_done`：已有部分实现；列出已完成和剩余验收项，只对剩余范围进入分支选择。
+- `completed`：所有验收项已有实现与验证证据；记录状态并继续核验队列下一条。
+- `obsolete`：需求前提已经消失或当前产品行为使其无必要；记录原因并继续下一条。
+- `duplicate`：与已有实现或另一需求重复；记录关联对象并继续下一条。
+- `needs_confirmation`：证据冲突或不足；记录状态并询问用户，不选择下一条。
+
+每个结论必须提供具体证据，例如文件与行号、测试名称、提交、配置或明确的飞书业务状态。不要仅凭搜索不到关键词判定 `not_started`，也不要仅凭存在相似代码判定 `completed`。`completed` 必须逐项覆盖验收标准；`obsolete` 和 `duplicate` 必须说明依据。
+
+```powershell
+uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status completed --reason "验收标准均已满足" --evidence "src/example.ts:42" --evidence "tests/example.test.ts"
+uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status obsolete --reason "依赖功能已下线" --evidence "飞书状态：已取消"
+uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status duplicate --reason "与 REQ-1001 重复" --evidence "REQ-1001"
+uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status needs_confirmation --reason "代码行为与验收标准冲突" --evidence "src/example.ts:42"
+```
+
+若前一候选无需实施，继续核验下一条，但本轮最终仍最多实施一条需求。候选全部无需实施时，输出每条结论和证据后结束，不询问分支、不修改代码、不发最终实施报告。
+
 ## 分支选择检查点
 
 选择需求后只读检查目标仓库，展示：
 
 - 需求 ID、标题、验收标准和选择原因
+- 必要性结论、证据，以及 `partially_done` 时的剩余验收项
 - 实施步骤、预计文件和验证命令
 - 当前分支及 `git status --short`
 - 使用当前分支、创建 `codex/<slug>` 分支或取消三个选项

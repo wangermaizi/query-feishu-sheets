@@ -77,6 +77,16 @@ def validate_report(report: dict[str, Any]) -> dict[str, Any]:
             raise ReportError(f"报告字段 {key} 必须为数组")
     if len(report["reviews"]) != 3:
         raise ReportError("报告必须包含三个 Reviewer 的结果")
+    necessity = report.get("necessity_assessment")
+    if not isinstance(necessity, dict):
+        raise ReportError("报告必须包含 necessity_assessment")
+    if necessity.get("status") not in {"not_started", "partially_done"}:
+        raise ReportError("实施报告的必要性状态必须为 not_started 或 partially_done")
+    evidence = necessity.get("evidence")
+    if not isinstance(evidence, list) or not evidence or not all(
+        isinstance(value, str) and value.strip() for value in evidence
+    ):
+        raise ReportError("necessity_assessment.evidence 必须为非空字符串数组")
     serialized = json.dumps(report, ensure_ascii=False).lower()
     forbidden = ("app_secret", "tenant_access_token", "authorization: bearer")
     if any(marker in serialized for marker in forbidden):
@@ -123,6 +133,10 @@ def build_card(report: dict[str, Any]) -> dict[str, Any]:
             "**Git 操作：** 未 commit、未 push、未 merge、未发布",
         ),
         ("选择原因", text(report["selection_reason"])),
+        ("实施必要性核验", bullet_list([
+            {"status": report["necessity_assessment"]["status"], "reason": report["necessity_assessment"].get("reason", "")},
+            *report["necessity_assessment"]["evidence"],
+        ])),
         ("修改内容", bullet_list(report["changes"])),
         ("验证结果", bullet_list(report["tests"])),
         ("三路 Review", bullet_list(report["reviews"])),

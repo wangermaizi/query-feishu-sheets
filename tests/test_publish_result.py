@@ -20,6 +20,12 @@ def report():
         "title": "Test requirement",
         "status": "completed",
         "selection_reason": "P1 and implementable",
+        "necessity_assessment": {
+            "status": "partially_done",
+            "reason": "Base query exists, deduplication is missing",
+            "evidence": ["src/service.py:120"],
+            "remaining_criteria": ["Do not process completed requirements twice"],
+        },
         "repository": "D:\\workspace\\example",
         "branch": "main",
         "changes": ["Changed behavior"],
@@ -48,3 +54,4 @@ def test_card_states_no_git_side_effects():
         element.get("text", {}).get("content", "") for element in card["elements"]
     )
     assert "未 commit、未 push、未 merge、未发布" in content
+    assert "实施必要性核验" in content

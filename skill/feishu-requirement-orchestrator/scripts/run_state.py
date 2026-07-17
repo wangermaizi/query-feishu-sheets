@@ -18,10 +18,14 @@ from typing import Any
 
 VALID_STATUSES = {
     "discovered",
+    "needs_confirmation",
     "awaiting_branch_choice",
     "in_progress",
     "report_failed",
     "reported",
+    "completed",
+    "obsolete",
+    "duplicate",
     "skipped",
 }
 
@@ -74,6 +78,8 @@ def main() -> int:
     mark.add_argument("--id", required=True)
     mark.add_argument("--status", required=True, choices=sorted(VALID_STATUSES))
     mark.add_argument("--title")
+    mark.add_argument("--reason")
+    mark.add_argument("--evidence", action="append", default=[])
     args = parser.parse_args()
     try:
         state = load_state()
@@ -88,6 +94,10 @@ def main() -> int:
             )
             if args.title:
                 entry["title"] = args.title
+            if args.reason:
+                entry["reason"] = args.reason
+            if args.evidence:
+                entry["evidence"] = args.evidence
             state["requirements"][args.id] = entry
             atomic_write(state)
         json.dump(state, sys.stdout, ensure_ascii=False, indent=2)

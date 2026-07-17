@@ -48,6 +48,20 @@
 
 `impact`、`urgency`、`ease`、`risk` 均为 1 到 5 的整数。排序首先使用 P0 至 P3，其次依次考虑可实现容易度、影响、紧急度和风险。原始飞书记录放在 `source`，不得丢失空字段。
 
+排序后的候选在代码只读核验阶段生成必要性结果：
+
+```json
+{
+  "status": "partially_done",
+  "reason": "接口已经支持查询，但缺少状态去重",
+  "evidence": ["src/service.py:120", "tests/test_service.py:45"],
+  "completed_criteria": ["可以读取需求列表"],
+  "remaining_criteria": ["已处理需求不得重复执行"]
+}
+```
+
+`status` 只能为 `not_started`、`partially_done`、`completed`、`obsolete`、`duplicate` 或 `needs_confirmation`。证据不足时使用 `needs_confirmation`，不要猜测。
+
 ## 运行配置
 
 `orchestrator.json` 示例：
@@ -83,3 +97,21 @@
 ```
 
 `chat_id` 和 `auto_publish` 必须由用户明确确认后保存。配置不保存 App Secret；密钥只存在于同目录的 `credentials.json`。
+
+每个保存的 profile 应设置唯一、清楚的显示名，并可增加别名和用途描述，帮助解析用户口语中的表名：
+
+```json
+{
+  "profile_id": "product-requirements",
+  "display_name": "产品研发需求表",
+  "aliases": ["研发需求", "产品需求", "研发表"],
+  "description": "产品和研发团队待开发的软件需求",
+  "credential": "requirement-bot",
+  "document_url": "https://example.feishu.cn/base/token",
+  "default_table": "需求池",
+  "filters": [],
+  "output_columns": ["需求ID", "需求标题", "需求描述", "验收标准"]
+}
+```
+
+`aliases` 不能替代唯一 `profile_id`；不同 profile 可以出现语义相近别名，此时必须由用户选择。

@@ -23,3 +23,7 @@ def test_atomic_state_round_trip(tmp_path, monkeypatch):
     run_state.atomic_write(payload)
     assert run_state.load_state() == payload
     assert json.loads((tmp_path / "state.json").read_text(encoding="utf-8")) == payload
+
+
+def test_necessity_terminal_statuses_are_supported():
+    assert {"needs_confirmation", "completed", "obsolete", "duplicate"} <= run_state.VALID_STATUSES

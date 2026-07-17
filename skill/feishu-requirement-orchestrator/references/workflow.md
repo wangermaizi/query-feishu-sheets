@@ -5,10 +5,14 @@
 | 状态 | 含义 | 后续动作 |
 | --- | --- | --- |
 | `discovered` | 已查询，尚未选择 | 参与本轮排序 |
+| `needs_confirmation` | 必要性证据冲突或不足 | 等待用户判断，不选择新需求 |
 | `awaiting_branch_choice` | 已选中，等待用户决定分支 | 禁止修改代码 |
 | `in_progress` | 用户已授权工作位置 | 实施、测试和 Review |
 | `report_failed` | 实施已完成但群发送失败 | 人工决定是否重发 |
 | `reported` | 最终结果已发到群 | 后续查询排除 |
+| `completed` | 代码核验确认已经实现 | 后续查询排除 |
+| `obsolete` | 需求已失效或没有继续必要 | 后续查询排除 |
+| `duplicate` | 与已有实现或需求重复 | 后续查询排除 |
 | `skipped` | 用户取消或明确跳过 | 后续查询默认排除 |
 
 状态转换只能前进，不要因为新一轮定时任务把未完成项重置为 `discovered`。
@@ -17,10 +21,16 @@
 
 1. 检查模型能力和配置。
 2. 查询需求并读取本地状态。
-3. 若存在 `awaiting_branch_choice`，报告等待中的任务，不选择新需求。
-4. 若存在 `in_progress`，报告异常中断并要求用户决定是否恢复，不选择新需求。
-5. 否则分析候选并只选择排名第一的可执行项。
-6. 写入 `awaiting_branch_choice`，向用户询问分支选择后停止当前自动阶段。
+3. 若存在 `needs_confirmation`，展示证据并继续等待用户判断，不选择新需求。
+4. 若存在 `awaiting_branch_choice`，报告等待中的任务，不选择新需求。
+5. 若存在 `in_progress`，报告异常中断并要求用户决定是否恢复，不选择新需求。
+6. 否则分析并排序候选，从第一条开始只读核验实现状态与继续必要性。
+7. 对 `completed`、`obsolete` 或 `duplicate` 记录结论和证据，再核验下一条。
+8. 对 `needs_confirmation` 暂停询问；对 `not_started` 或 `partially_done` 写入 `awaiting_branch_choice` 并询问分支。
+
+## 必要性核验
+
+逐项对照验收标准并保存证据。`partially_done` 必须明确剩余范围；后续实施与 Review 只针对剩余范围。不要为了完成核验而修改文件、安装依赖或切换分支。
 
 ## 用户回复后恢复
 

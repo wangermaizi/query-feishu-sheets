@@ -763,6 +763,15 @@ def validate_profile(profile: dict[str, Any]) -> dict[str, Any]:
         raise FeishuSheetError("表格配置缺少字段: credential")
     document_type(profile_document_url(profile))
     validated = dict(profile)
+    aliases = profile.get("aliases", [])
+    if not isinstance(aliases, list) or not all(
+        isinstance(item, str) and item.strip() for item in aliases
+    ):
+        raise FeishuSheetError("aliases 必须为非空字符串数组")
+    validated["aliases"] = list(dict.fromkeys(item.strip() for item in aliases))
+    description = profile.get("description")
+    if description is not None and (not isinstance(description, str) or not description.strip()):
+        raise FeishuSheetError("description 必须为非空字符串")
     filters = profile.get("filters", [])
     if not isinstance(filters, list):
         raise FeishuSheetError("filters 必须是数组")
@@ -1430,6 +1439,8 @@ def command_profile(args: argparse.Namespace) -> dict[str, Any]:
                 {
                     "profile_id": name,
                     "display_name": value.get("display_name", name),
+                    "aliases": value.get("aliases", []),
+                    "description": value.get("description", ""),
                     "source_type": document_type(profile_document_url(value)),
                     "default_sheet": value.get("default_sheet"),
                     "default_table": value.get("default_table"),
