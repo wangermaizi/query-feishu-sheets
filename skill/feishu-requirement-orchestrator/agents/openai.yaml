@@ -1,0 +1,4 @@
+interface:
+  display_name: "飞书需求自动执行"
+  short_description: "从飞书读取需求，编排代码实施、三路审查并发送群确认结果"
+  default_prompt: "Use $feishu-requirement-orchestrator to analyze the configured Feishu requirements and process the highest-ranked eligible item."

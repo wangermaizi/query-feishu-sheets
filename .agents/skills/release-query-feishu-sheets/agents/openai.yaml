@@ -1,0 +1,4 @@
+interface:
+  display_name: "发布飞书需求 Skill"
+  short_description: "整理更新日志、创建版本标签并推送以启动GitHub打包流水线"
+  default_prompt: "Use $release-query-feishu-sheets to release the current repository changes and stop after the GitHub Actions run is detected."
