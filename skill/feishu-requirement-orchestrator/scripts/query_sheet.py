@@ -776,6 +776,10 @@ def validate_profile(profile: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(filters, list):
         raise FeishuSheetError("filters 必须是数组")
     validated["filters"] = [validate_filter(item) for item in filters]
+    allow_unfiltered = profile.get("allow_unfiltered", False)
+    if not isinstance(allow_unfiltered, bool):
+        raise FeishuSheetError("allow_unfiltered 必须为布尔值")
+    validated["allow_unfiltered"] = allow_unfiltered
     output_columns = profile.get("output_columns", [])
     if not isinstance(output_columns, list) or not all(isinstance(item, str) for item in output_columns):
         raise FeishuSheetError("output_columns 必须是字符串数组")
@@ -783,6 +787,13 @@ def validate_profile(profile: dict[str, Any]) -> dict[str, Any]:
     if delivery is not None and not isinstance(delivery, dict):
         raise FeishuSheetError("delivery 必须是对象")
     return validated
+
+
+def validate_filter_policy(profile: dict[str, Any]) -> None:
+    if not profile.get("filters") and profile.get("allow_unfiltered") is not True:
+        raise FeishuSheetError(
+            "查询缺少筛选条件；请先询问用户如何过滤，或在用户明确确认整表查询后设置 allow_unfiltered=true"
+        )
 
 
 def query_spec(args: argparse.Namespace) -> tuple[str | None, dict[str, Any]]:
@@ -1037,6 +1048,7 @@ def execute_bitable_query(
 
 def execute_query(profile_name: str | None, profile: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     profile = apply_cli_overrides(profile, args)
+    validate_filter_policy(profile)
     filters = resolve_filters(profile.get("filters", []), args.start_date, args.end_date)
     access_token = get_access_token(profile["credential"])
     document_url = profile_document_url(profile)
@@ -1441,6 +1453,8 @@ def command_profile(args: argparse.Namespace) -> dict[str, Any]:
                     "display_name": value.get("display_name", name),
                     "aliases": value.get("aliases", []),
                     "description": value.get("description", ""),
+                    "filter_count": len(value.get("filters", [])),
+                    "allow_unfiltered": value.get("allow_unfiltered", False),
                     "source_type": document_type(profile_document_url(value)),
                     "default_sheet": value.get("default_sheet"),
                     "default_table": value.get("default_table"),
@@ -1459,6 +1473,7 @@ def command_profile(args: argparse.Namespace) -> dict[str, Any]:
         if not isinstance(profile_id, str) or not PROFILE_ID_RE.fullmatch(profile_id):
             raise FeishuSheetError("profile_id 必须是 1-64 位小写字母、数字或连字符")
         profile = validate_profile(draft)
+        validate_filter_policy(profile)
         get_credential(profile["credential"])
         if profile_id in profiles and not args.replace:
             raise FeishuSheetError(f"配置已存在: {profile_id}；确认覆盖后使用 --replace")

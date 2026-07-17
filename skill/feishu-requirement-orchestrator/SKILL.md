@@ -31,11 +31,25 @@ description: Read software requirements from a configured Feishu Sheet or Bitabl
 
 首次使用时根据 [requirement-schema.md](references/requirement-schema.md) 创建配置草稿，隐藏密钥后展示非敏感配置，获得用户确认再保存。覆盖现有配置前再次确认。
 
+### 首次配置筛选条件
+
+运行 `inspect` 取得真实表头后，必须暂停并明确询问用户“应该通过哪些条件过滤出待处理需求”，不得自行推断后直接保存。展示可用字段，并逐项确认：
+
+- 筛选列；
+- 操作符：`equals`、`contains`、`in`、`not_empty`、`date_between` 或 `natural_week`；
+- 筛选值，以及日期条件是否使用当前自然周或固定范围；
+- 多个条件是否符合预期。当前脚本对多个条件使用 AND，必须告知用户；
+- 输出字段。
+
+根据回答生成 profile 草稿并执行试查，完整展示实际生效的 `filters`、命中数量和样例结果。只有用户确认筛选条件与试查结果后才能保存 profile。
+
+默认禁止无筛选查询。用户明确要求读取整张表时，警告可能读取大量或已处理需求，并单独确认；确认后在 profile 中设置 `"allow_unfiltered": true`。不得把空 `filters` 当成用户同意。定时任务没有默认筛选且没有该显式授权时必须停止。
+
 ## 查询与选择
 
 1. 运行 `credential list` 和 `profile list`，不要读取凭证文件。
 2. 按“解析需求表名称”规则确定唯一 profile，再查询需求。链接为 `/sheets/` 或 `/base/` 时自动分流；`/wiki/` 要求直接链接。
-3. 排除 `state.json` 中 `awaiting_branch_choice`、`needs_confirmation`、`in_progress`、`reported`、`completed`、`obsolete`、`duplicate` 或 `skipped` 的需求。
+3. 排除 `state.json` 中 `awaiting_analysis_confirmation`、`awaiting_branch_choice`、`needs_confirmation`、`in_progress`、`reported`、`completed`、`obsolete`、`duplicate` 或 `skipped` 的需求。已有 `approved` 需求时优先处理，不重复加入新分析批次。
 4. 对每条候选生成结构化评估：业务优先级、影响、紧急度、实现容易度、风险、阻塞项和信息完整性。
 5. 运行 `rank_requirements.py` 校验评估并生成候选队列。没有可执行项时输出队列摘要并结束，不调用代码执行或群发布。
 
@@ -70,25 +84,32 @@ uv run <skill-dir>\scripts\profile_selector.py switch --profile-id "profile-id"
 
 ## 实现状态与必要性核验
 
-从候选队列第一条开始，在询问分支前只读检查目标仓库。查看相关代码、测试、配置、文档和 `git log`，逐条对照验收标准，并给出以下唯一结论之一：
+对候选队列中的所有需求完成只读核验后再询问用户，不要在分析第一条后暂停。查看相关代码、测试、配置、文档和 `git log`，逐条对照验收标准，并给出以下唯一建议结论之一：
 
-- `not_started`：没有实现证据，且需求仍适用；进入分支选择。
-- `partially_done`：已有部分实现；列出已完成和剩余验收项，只对剩余范围进入分支选择。
-- `completed`：所有验收项已有实现与验证证据；记录状态并继续核验队列下一条。
-- `obsolete`：需求前提已经消失或当前产品行为使其无必要；记录原因并继续下一条。
-- `duplicate`：与已有实现或另一需求重复；记录关联对象并继续下一条。
-- `needs_confirmation`：证据冲突或不足；记录状态并询问用户，不选择下一条。
+- `not_started`：没有实现证据，且需求仍适用；建议批准实施。
+- `partially_done`：已有部分实现；列出已完成和剩余验收项，建议只实施剩余范围。
+- `completed`：所有验收项已有实现与验证证据；建议标记已完成。
+- `obsolete`：需求前提已经消失或当前产品行为使其无必要；建议标记失效。
+- `duplicate`：与已有实现或另一需求重复；建议标记重复。
+- `needs_confirmation`：证据冲突或不足；要求用户在批量确认时给出判断或选择暂缓。
 
 每个结论必须提供具体证据，例如文件与行号、测试名称、提交、配置或明确的飞书业务状态。不要仅凭搜索不到关键词判定 `not_started`，也不要仅凭存在相似代码判定 `completed`。`completed` 必须逐项覆盖验收标准；`obsolete` 和 `duplicate` 必须说明依据。
 
+完成全部核验后，为本批次生成唯一 `batch_id`，按排序为每条需求写入待确认状态：
+
 ```powershell
-uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status completed --reason "验收标准均已满足" --evidence "src/example.ts:42" --evidence "tests/example.test.ts"
-uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status obsolete --reason "依赖功能已下线" --evidence "飞书状态：已取消"
-uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status duplicate --reason "与 REQ-1001 重复" --evidence "REQ-1001"
-uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status needs_confirmation --reason "代码行为与验收标准冲突" --evidence "src/example.ts:42"
+uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status awaiting_analysis_confirmation --batch-id "20260717-001" --rank 1 --proposed-status partially_done --reason "已有查询，缺少去重" --evidence "src/example.ts:42" --remaining-criterion "已处理需求不得重复执行"
 ```
 
-若前一候选无需实施，继续核验下一条，但本轮最终仍最多实施一条需求。候选全部无需实施时，输出每条结论和证据后结束，不询问分支、不修改代码、不发最终实施报告。
+向用户一次性展示整个批次，至少包含：排序、需求 ID、标题、优先级、建议结论、理由、证据、剩余验收项和建议动作。明确提供“全部确认”以及“按需求 ID 批量修改结论”两种回复方式。不得逐条弹出确认，也不得在用户回复前写入最终结论、选择分支或修改代码。
+
+用户批量确认后统一落盘：
+
+- `completed`、`obsolete`、`duplicate`：写入对应终态。
+- `not_started`、`partially_done`：写入 `approved`；部分完成项保留剩余验收范围。
+- `needs_confirmation`：用户已给出结论则写入修正后的状态；仍无法判断则保留 `needs_confirmation`，但不阻塞同批其他已批准需求。
+
+从全部 `approved` 需求中选择排序最高的一条进入分支确认，本轮仍最多实施一条。其余 `approved` 项保留到后续轮次；实施前重新核对证据，若仓库变化导致结论变化，必须放入新的批次再次统一确认。候选全部无需实施时，在批量确认落盘后结束，不询问分支、不修改代码、不发最终实施报告。
 
 ## 分支选择检查点
 

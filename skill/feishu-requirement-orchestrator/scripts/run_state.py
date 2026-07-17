@@ -18,6 +18,8 @@ from typing import Any
 
 VALID_STATUSES = {
     "discovered",
+    "awaiting_analysis_confirmation",
+    "approved",
     "needs_confirmation",
     "awaiting_branch_choice",
     "in_progress",
@@ -27,6 +29,14 @@ VALID_STATUSES = {
     "obsolete",
     "duplicate",
     "skipped",
+}
+NECESSITY_STATUSES = {
+    "not_started",
+    "partially_done",
+    "completed",
+    "obsolete",
+    "duplicate",
+    "needs_confirmation",
 }
 
 
@@ -80,6 +90,10 @@ def main() -> int:
     mark.add_argument("--title")
     mark.add_argument("--reason")
     mark.add_argument("--evidence", action="append", default=[])
+    mark.add_argument("--batch-id")
+    mark.add_argument("--rank", type=int)
+    mark.add_argument("--proposed-status", choices=sorted(NECESSITY_STATUSES))
+    mark.add_argument("--remaining-criterion", action="append", default=[])
     args = parser.parse_args()
     try:
         state = load_state()
@@ -98,6 +112,16 @@ def main() -> int:
                 entry["reason"] = args.reason
             if args.evidence:
                 entry["evidence"] = args.evidence
+            if args.batch_id:
+                entry["batch_id"] = args.batch_id
+            if args.rank is not None:
+                if args.rank < 1:
+                    raise ValueError("rank 必须大于等于 1")
+                entry["rank"] = args.rank
+            if args.proposed_status:
+                entry["proposed_status"] = args.proposed_status
+            if args.remaining_criterion:
+                entry["remaining_criteria"] = args.remaining_criterion
             state["requirements"][args.id] = entry
             atomic_write(state)
         json.dump(state, sys.stdout, ensure_ascii=False, indent=2)

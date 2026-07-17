@@ -109,9 +109,22 @@
   "credential": "requirement-bot",
   "document_url": "https://example.feishu.cn/base/token",
   "default_table": "需求池",
-  "filters": [],
+  "filters": [
+    {"column": "状态", "operator": "equals", "value": "待处理"}
+  ],
   "output_columns": ["需求ID", "需求标题", "需求描述", "验收标准"]
 }
 ```
 
 `aliases` 不能替代唯一 `profile_id`；不同 profile 可以出现语义相近别名，此时必须由用户选择。
+
+`filters` 默认为必填且不能为空。所有条件按 AND 组合。只有用户在看过风险提示后明确要求读取整张表，才允许使用：
+
+```json
+{
+  "filters": [],
+  "allow_unfiltered": true
+}
+```
+
+`allow_unfiltered` 是显式安全授权，不得由 Codex自行添加。后续重新加入筛选条件时删除该字段或设为 `false`。

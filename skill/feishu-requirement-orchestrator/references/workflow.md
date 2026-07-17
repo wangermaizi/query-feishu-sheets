@@ -5,6 +5,8 @@
 | 状态 | 含义 | 后续动作 |
 | --- | --- | --- |
 | `discovered` | 已查询，尚未选择 | 参与本轮排序 |
+| `awaiting_analysis_confirmation` | 已完成批量分析，等待用户统一确认 | 不写最终结论、不修改代码 |
+| `approved` | 用户已确认需要实施 | 按批次排序等待执行 |
 | `needs_confirmation` | 必要性证据冲突或不足 | 等待用户判断，不选择新需求 |
 | `awaiting_branch_choice` | 已选中，等待用户决定分支 | 禁止修改代码 |
 | `in_progress` | 用户已授权工作位置 | 实施、测试和 Review |
@@ -21,16 +23,17 @@
 
 1. 检查模型能力和配置。
 2. 查询需求并读取本地状态。
-3. 若存在 `needs_confirmation`，展示证据并继续等待用户判断，不选择新需求。
+3. 若存在同一 `batch_id` 的 `awaiting_analysis_confirmation`，重新展示完整批次并等待统一确认，不分析新需求。
 4. 若存在 `awaiting_branch_choice`，报告等待中的任务，不选择新需求。
 5. 若存在 `in_progress`，报告异常中断并要求用户决定是否恢复，不选择新需求。
-6. 否则分析并排序候选，从第一条开始只读核验实现状态与继续必要性。
-7. 对 `completed`、`obsolete` 或 `duplicate` 记录结论和证据，再核验下一条。
-8. 对 `needs_confirmation` 暂停询问；对 `not_started` 或 `partially_done` 写入 `awaiting_branch_choice` 并询问分支。
+6. 若存在 `approved`，重新核对排名最高项的证据；结论未变化则进入分支确认。
+7. 否则分析并排序候选，对本轮所有候选完成只读必要性核验。
+8. 把全部建议结论写入同一待确认批次，一次性展示并暂停。
+9. 用户统一确认后写入终态或 `approved`，再选择排名最高的已批准需求进入分支确认。
 
 ## 必要性核验
 
-逐项对照验收标准并保存证据。`partially_done` 必须明确剩余范围；后续实施与 Review 只针对剩余范围。不要为了完成核验而修改文件、安装依赖或切换分支。
+逐项对照验收标准并保存证据。`partially_done` 必须明确剩余范围；后续实施与 Review 只针对剩余范围。不要为了完成核验而修改文件、安装依赖或切换分支。必须完成整个候选批次后再请求一次统一确认，不得因某条 `needs_confirmation` 提前中断其余分析。
 
 ## 用户回复后恢复
 
