@@ -13,19 +13,60 @@ param(
 $ErrorActionPreference = "Stop"
 $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
 
-while ($true) {
-    $json = gh run list `
-        --workflow "build-skill.yml" `
-        --branch $Tag `
-        --event push `
-        --limit 10 `
-        --json databaseId,status,conclusion,url,headBranch,headSha,createdAt
+function Get-WorkflowRuns {
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        $json = gh run list `
+            --workflow "build-skill.yml" `
+            --branch $Tag `
+            --event push `
+            --limit 10 `
+            --json databaseId,status,conclusion,url,headBranch,headSha,createdAt
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to query GitHub Actions runs."
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to query GitHub Actions runs with GitHub CLI."
+        }
+        return @($json | ConvertFrom-Json)
     }
 
-    $runs = @($json | ConvertFrom-Json)
+    $remote = git remote get-url origin
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read the origin remote."
+    }
+    $match = [regex]::Match($remote.Trim(), 'github\.com[/:](?<owner>[^/]+?)/(?<repo>[^/]+?)(?:\.git)?$')
+    if (-not $match.Success) {
+        throw "The origin remote is not a supported GitHub URL."
+    }
+
+    $owner = $match.Groups['owner'].Value
+    $repo = $match.Groups['repo'].Value
+    $encodedTag = [Uri]::EscapeDataString($Tag)
+    $uri = "https://api.github.com/repos/$owner/$repo/actions/workflows/build-skill.yml/runs?branch=$encodedTag&event=push&per_page=10"
+    $headers = @{
+        Accept = "application/vnd.github+json"
+        "User-Agent" = "release-query-feishu-sheets"
+        "X-GitHub-Api-Version" = "2022-11-28"
+    }
+    $token = if ($env:GH_TOKEN) { $env:GH_TOKEN } else { $env:GITHUB_TOKEN }
+    if ($token) {
+        $headers.Authorization = "Bearer $token"
+    }
+
+    $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
+    return @($response.workflow_runs | ForEach-Object {
+        [pscustomobject]@{
+            databaseId = $_.id
+            status = $_.status
+            conclusion = $_.conclusion
+            url = $_.html_url
+            headBranch = $_.head_branch
+            headSha = $_.head_sha
+            createdAt = $_.created_at
+        }
+    })
+}
+
+while ($true) {
+    $runs = @(Get-WorkflowRuns)
     $run = $runs |
         Where-Object { $_.headBranch -eq $Tag } |
         Sort-Object createdAt -Descending |

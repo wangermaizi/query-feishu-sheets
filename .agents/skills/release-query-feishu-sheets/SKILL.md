@@ -14,7 +14,7 @@ description: Release the query-feishu-sheets repository to GitHub by analyzing c
 ## 1. 发布前检查
 
 1. 确认当前仓库根目录为 `query-feishu-sheets`，当前分支为 `main`，远程 `origin` 指向 GitHub。
-2. 运行 `gh auth status`，确认 GitHub CLI 已登录。
+2. 优先运行 `gh auth status`。未安装 GitHub CLI 时，确认仓库公开可读并允许检测脚本使用 GitHub REST API；私有仓库没有 `GH_TOKEN` 或 `GITHUB_TOKEN` 时停止。
 3. 确认 `.github/workflows/build-skill.yml` 存在且监听 `v*` tag。
 4. 读取 `git status --short`、已跟踪和未跟踪改动、最近提交及已有 tag。
 5. 运行 `git fetch origin main --tags`。若本地 `main` 落后或与 `origin/main` 分叉，停止并说明，不自动 rebase、merge 或强推。
