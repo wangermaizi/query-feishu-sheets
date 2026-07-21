@@ -71,6 +71,8 @@ def test_card_shows_concise_user_facing_result():
     assert "现状：系统会重复处理" in content
     assert "修改内容" in content
     assert "待确认" in content
+    assert "选择原因" not in content
+    assert "P1 and implementable" not in content
     assert "复杂度与验证策略" not in content
     assert "实施必要性核验" not in content
     assert "验证结果" not in content

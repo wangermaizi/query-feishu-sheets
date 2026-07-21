@@ -179,7 +179,6 @@ def build_card(report: dict[str, Any]) -> dict[str, Any]:
             f"**分支：** {text(report['branch'])}\n"
             "**Git 操作：** 未 commit、未 push、未 merge、未发布",
         ),
-        ("选择原因", text(report["selection_reason"])),
         ("需求说明", text(report["plain_language_summary"])),
         ("修改内容", bullet_list(report["changes"])),
         ("待确认", text(report["next_action"])),

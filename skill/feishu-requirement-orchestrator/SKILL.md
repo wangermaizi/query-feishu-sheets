@@ -271,7 +271,7 @@ uv run <skill-dir>\scripts\review_gate.py complete --id "REQ-1024" --repository 
 
 报告必须包含非空 `project_name`。飞书卡片标题固定使用 `【project_name】title`，不显示需求 ID，确保用户在消息列表中无需展开卡片即可识别项目和需求。项目名无法从已确认字段或 `default_project_name` 唯一确定时，发布前暂停询问用户。
 
-群卡片只展示执行信息、选择原因、普通语言需求说明、修改内容和待确认事项。复杂度与验证策略、实施必要性核验、测试明细、Review 结果和残余风险继续保留在内部报告用于校验，但不得渲染到群卡片。
+群卡片只展示执行信息、普通语言需求说明、修改内容和待确认事项。选择原因、复杂度与验证策略、实施必要性核验、测试明细、Review 结果和残余风险继续保留在内部报告用于校验，但不得渲染到群卡片。
 
 ```powershell
 uv run <skill-dir>\scripts\publish_result.py preview --report "报告绝对路径"
