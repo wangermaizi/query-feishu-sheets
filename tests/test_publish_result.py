@@ -61,19 +61,22 @@ def test_hash_binds_report_to_chat():
     assert first != second
 
 
-def test_card_states_no_git_side_effects():
+def test_card_shows_concise_user_facing_result():
     card = publish_result.build_card(publish_result.validate_report(report()))
     content = "\n".join(
         element.get("text", {}).get("content", "") for element in card["elements"]
     )
     assert "未 commit、未 push、未 merge、未发布" in content
-    assert "实施必要性核验" in content
     assert "需求说明" in content
     assert "现状：系统会重复处理" in content
-    assert "复杂度与验证策略" in content
-    assert "Review 结果（3 路）" in content
-    assert "完整候选实现与初测完成后" in content
-    assert card["header"]["title"]["content"] == "【OA｜REQ-1】Test requirement"
+    assert "修改内容" in content
+    assert "待确认" in content
+    assert "复杂度与验证策略" not in content
+    assert "实施必要性核验" not in content
+    assert "验证结果" not in content
+    assert "Review 结果" not in content
+    assert "残余风险" not in content
+    assert card["header"]["title"]["content"] == "【OA】Test requirement"
     assert "**项目：** OA" in content
 
 

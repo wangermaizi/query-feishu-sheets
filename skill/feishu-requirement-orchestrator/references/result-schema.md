@@ -46,4 +46,6 @@
 
 `review_process` 必须来自 `review_gate.py status`。实现完成时间必须早于或等于首次 Review 开始时间，两个时间都必须包含时区；`complete_candidate_reviewed` 和 `all_reviewers_collected_before_fixes` 必须为 `true`。不满足时禁止发布成功报告。
 
-`project_name` 必须是用户可识别的业务项目名。卡片标题生成格式为 `【project_name｜requirement_id】title`；不得只显示需求标题，也不得从目录名自行推断项目名。
+`project_name` 必须是用户可识别的业务项目名。卡片标题生成格式为 `【project_name】title`，不显示需求 ID；不得只显示需求标题，也不得从目录名自行推断项目名。
+
+群卡片只渲染执行信息、选择原因、普通语言需求说明、修改内容和待确认事项。复杂度、必要性核验、测试、Review 和残余风险仍为内部报告必填数据，用于安全校验和审计，但不渲染到群卡片。

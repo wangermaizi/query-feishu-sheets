@@ -269,7 +269,9 @@ uv run <skill-dir>\scripts\review_gate.py complete --id "REQ-1024" --repository 
 
 先运行 `review_gate.py status`。只有 `review_phase: review_complete` 才能生成符合 [result-schema.md](references/result-schema.md) 的 JSON 报告，并把门禁中的实现完成时间、首次 Review 开始时间和收齐状态写入 `review_process`。随后预览并保留哈希，再立即向预授权群发布同一报告；这是用户对固定群的持续授权，不需要每次再次询问。报告变化导致哈希不一致时重新生成预览，禁止绕过检查。
 
-报告必须包含非空 `project_name`。飞书卡片标题固定使用 `【project_name｜requirement_id】title`，确保用户在消息列表中无需展开卡片即可识别项目和需求。项目名无法从已确认字段或 `default_project_name` 唯一确定时，发布前暂停询问用户。
+报告必须包含非空 `project_name`。飞书卡片标题固定使用 `【project_name】title`，不显示需求 ID，确保用户在消息列表中无需展开卡片即可识别项目和需求。项目名无法从已确认字段或 `default_project_name` 唯一确定时，发布前暂停询问用户。
+
+群卡片只展示执行信息、选择原因、普通语言需求说明、修改内容和待确认事项。复杂度与验证策略、实施必要性核验、测试明细、Review 结果和残余风险继续保留在内部报告用于校验，但不得渲染到群卡片。
 
 ```powershell
 uv run <skill-dir>\scripts\publish_result.py preview --report "报告绝对路径"

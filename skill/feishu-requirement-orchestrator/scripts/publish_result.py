@@ -167,7 +167,7 @@ def bullet_list(values: list[Any]) -> str:
 
 def build_card(report: dict[str, Any]) -> dict[str, Any]:
     status_template = {"completed": "green", "blocked": "orange", "failed": "red"}
-    card_title = f"【{report['project_name']}｜{report['requirement_id']}】{report['title']}"
+    card_title = f"【{report['project_name']}】{report['title']}"
     elements: list[dict[str, Any]] = []
     sections = [
         (
@@ -181,22 +181,7 @@ def build_card(report: dict[str, Any]) -> dict[str, Any]:
         ),
         ("选择原因", text(report["selection_reason"])),
         ("需求说明", text(report["plain_language_summary"])),
-        (
-            "复杂度与验证策略",
-            f"**分级：** {text(report['complexity_tier'])}\n"
-            f"**理由：** {text(report['complexity_reason'])}\n"
-            f"**Review 数量：** {len(report['reviews'])}\n"
-            f"**Review 轮次：** {report['review_rounds']}\n"
-            "**Review 时机：** 完整候选实现与初测完成后",
-        ),
-        ("实施必要性核验", bullet_list([
-            {"status": report["necessity_assessment"]["status"], "reason": report["necessity_assessment"].get("reason", "")},
-            *report["necessity_assessment"]["evidence"],
-        ])),
         ("修改内容", bullet_list(report["changes"])),
-        ("验证结果", bullet_list(report["tests"])),
-        (f"Review 结果（{len(report['reviews'])} 路）", bullet_list(report["reviews"])),
-        ("残余风险", bullet_list(report["residual_risks"])),
         ("待确认", text(report["next_action"])),
     ]
     for index, (heading, content) in enumerate(sections):
