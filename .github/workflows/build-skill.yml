@@ -49,11 +49,21 @@ jobs:
       contents: write
 
     steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
       - name: Download packaged Skill
         uses: actions/download-artifact@v4
         with:
           name: feishu-requirement-orchestrator-${{ github.sha }}
           path: dist
+
+      - name: Prepare AI-generated release notes
+        run: |
+          python3 .agents/skills/release-query-feishu-sheets/scripts/extract_release_notes.py \
+            --tag "$GITHUB_REF_NAME" \
+            --changelog CHANGELOG.md \
+            --output dist/release-notes.md
 
       - name: Publish tagged GitHub Release
         env:
@@ -61,6 +71,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file dist/release-notes.md
             gh release upload "$GITHUB_REF_NAME" \
               dist/feishu-requirement-orchestrator.zip \
               dist/feishu-requirement-orchestrator.sha256 \
@@ -70,6 +83,6 @@ jobs:
               dist/feishu-requirement-orchestrator.zip \
               dist/feishu-requirement-orchestrator.sha256 \
               --verify-tag \
-              --generate-notes \
+              --notes-file dist/release-notes.md \
               --title "$GITHUB_REF_NAME"
           fi

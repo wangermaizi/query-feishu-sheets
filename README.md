@@ -69,7 +69,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-标签工作流成功后，可从项目的 [GitHub Releases](https://github.com/wangermaizi/query-feishu-sheets/releases) 下载离线安装包及 SHA-256 文件。普通 push 和 Pull Request 只生成 Actions 临时产物，不创建 Release。
+标签工作流成功后，可从项目的 [GitHub Releases](https://github.com/wangermaizi/query-feishu-sheets/releases) 查看 AI 根据实际改动生成的中文更新日志，并下载离线安装包及 SHA-256 文件。Release 正文直接使用 `CHANGELOG.md` 中当前 tag 对应的版本章节，不使用 GitHub 自动生成的 “Full Changelog” 作为发布说明。普通 push 和 Pull Request 只生成 Actions 临时产物，不创建 Release。
 
 ## 使用发布 Skill
 
@@ -83,8 +83,8 @@ git push origin v0.1.0
 
 1. 检查分支、远程仓库、GitHub 登录状态和待提交文件；
 2. 根据改动选择下一个语义化版本，首次发布使用 `v0.1.0`；
-3. 更新 `pyproject.toml`、`uv.lock` 和中文 `CHANGELOG.md`；
-4. 运行测试、Skill 校验和本地打包；
+3. 先根据实际改动生成面向使用者的中文更新日志，再更新 `pyproject.toml`、`uv.lock` 和 `CHANGELOG.md`；
+4. 提取当前版本章节作为 GitHub Release 正文，并运行测试、Skill 校验和本地打包；
 5. 提交改动并依次推送 `main` 和新 tag；
 6. 确认 GitHub Actions 已出现该 tag 对应的 `Build Skill` 运行记录。
 
