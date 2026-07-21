@@ -43,6 +43,11 @@ def load_assessments(path: Path) -> list[dict[str, Any]]:
         seen.add(requirement_id)
         if not isinstance(title, str) or not title.strip():
             raise AssessmentError(f"需求 {requirement_id} 缺少 title")
+        plain_language_summary = item.get("plain_language_summary")
+        if not isinstance(plain_language_summary, str) or not plain_language_summary.strip():
+            raise AssessmentError(
+                f"需求 {requirement_id} 缺少 plain_language_summary"
+            )
         priority = str(item.get("priority", "P3")).upper()
         if priority not in PRIORITY_ORDER:
             raise AssessmentError(f"需求 {requirement_id} priority 必须为 P0-P3")
@@ -56,6 +61,7 @@ def load_assessments(path: Path) -> list[dict[str, Any]]:
         if not isinstance(reasons, list) or not all(isinstance(value, str) for value in reasons):
             raise AssessmentError(f"需求 {requirement_id} 的 blocked_reasons 必须为字符串数组")
         normalized = dict(item)
+        normalized["plain_language_summary"] = plain_language_summary.strip()
         normalized["priority"] = priority
         normalized["_source_order"] = index
         validated.append(normalized)

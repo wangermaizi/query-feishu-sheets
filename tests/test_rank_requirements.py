@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -16,6 +17,7 @@ def requirement(requirement_id: str, priority: str, ease: int, *, eligible: bool
     return {
         "id": requirement_id,
         "title": requirement_id,
+        "plain_language_summary": "现状：当前流程不足。影响：用户操作受阻。目标：补齐流程。",
         "priority": priority,
         "impact": 3,
         "urgency": 3,
@@ -43,3 +45,28 @@ def test_ease_breaks_same_priority_tie_and_blocked_is_excluded():
     )
     assert result["selected"]["id"] == "easy"
     assert [item["id"] for item in result["blocked"]] == ["blocked"]
+
+
+def test_load_assessments_requires_plain_language_summary(tmp_path):
+    payload = requirement("REQ-1", "P1", 3)
+    del payload["plain_language_summary"]
+    path = tmp_path / "assessments.json"
+    path.write_text(json.dumps({"requirements": [payload]}), encoding="utf-8")
+
+    try:
+        rank_requirements.load_assessments(path)
+    except rank_requirements.AssessmentError as exc:
+        assert "plain_language_summary" in str(exc)
+    else:
+        raise AssertionError("missing plain_language_summary should be rejected")
+
+
+def test_load_assessments_trims_plain_language_summary(tmp_path):
+    payload = requirement("REQ-1", "P1", 3)
+    payload["plain_language_summary"] = "  现状：用户无法直接理解。目标：直接说明要做什么。  "
+    path = tmp_path / "assessments.json"
+    path.write_text(json.dumps({"requirements": [payload]}), encoding="utf-8")
+
+    loaded = rank_requirements.load_assessments(path)
+
+    assert loaded[0]["plain_language_summary"] == "现状：用户无法直接理解。目标：直接说明要做什么。"

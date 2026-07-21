@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import json
 import os
@@ -63,6 +64,9 @@ def validate_report(report: dict[str, Any]) -> dict[str, Any]:
         "title",
         "status",
         "selection_reason",
+        "plain_language_summary",
+        "complexity_tier",
+        "complexity_reason",
         "repository",
         "branch",
         "next_action",
@@ -73,11 +77,25 @@ def validate_report(report: dict[str, Any]) -> dict[str, Any]:
             raise ReportError(f"报告字段 {key} 不能为空")
     if report["status"] not in {"completed", "blocked", "failed"}:
         raise ReportError("status 必须为 completed、blocked 或 failed")
+    if report["complexity_tier"] not in {"fast", "standard", "strict"}:
+        raise ReportError("complexity_tier 必须为 fast、standard 或 strict")
+    review_rounds = report.get("review_rounds")
+    if not isinstance(review_rounds, int) or isinstance(review_rounds, bool):
+        raise ReportError("review_rounds 必须为整数")
+    allowed_rounds = {1} if report["complexity_tier"] != "strict" else {1, 2}
+    if review_rounds not in allowed_rounds:
+        raise ReportError(
+            f"{report['complexity_tier']} 级 review_rounds 必须为 "
+            + " 或 ".join(str(value) for value in sorted(allowed_rounds))
+        )
     for key in ("changes", "tests", "reviews", "residual_risks"):
         if not isinstance(report.get(key), list):
             raise ReportError(f"报告字段 {key} 必须为数组")
-    if len(report["reviews"]) != 3:
-        raise ReportError("报告必须包含三个 Reviewer 的结果")
+    expected_reviews = 1 if report["complexity_tier"] == "fast" else 3
+    if len(report["reviews"]) != expected_reviews:
+        raise ReportError(
+            f"{report['complexity_tier']} 级报告必须包含 {expected_reviews} 个 Reviewer 的结果"
+        )
     necessity = report.get("necessity_assessment")
     if not isinstance(necessity, dict):
         raise ReportError("报告必须包含 necessity_assessment")
@@ -88,6 +106,32 @@ def validate_report(report: dict[str, Any]) -> dict[str, Any]:
         isinstance(value, str) and value.strip() for value in evidence
     ):
         raise ReportError("necessity_assessment.evidence 必须为非空字符串数组")
+    review_process = report.get("review_process")
+    if not isinstance(review_process, dict):
+        raise ReportError("报告必须包含 review_process")
+    for key in ("implementation_completed_at", "first_review_started_at"):
+        value = review_process.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ReportError(f"review_process.{key} 不能为空")
+    for key in ("complete_candidate_reviewed", "all_reviewers_collected_before_fixes"):
+        if review_process.get(key) is not True:
+            raise ReportError(f"review_process.{key} 必须为 true")
+    try:
+        implementation_completed_at = dt.datetime.fromisoformat(
+            review_process["implementation_completed_at"]
+        )
+        first_review_started_at = dt.datetime.fromisoformat(
+            review_process["first_review_started_at"]
+        )
+    except ValueError as exc:
+        raise ReportError("review_process 时间必须为 ISO 8601") from exc
+    if (
+        implementation_completed_at.utcoffset() is None
+        or first_review_started_at.utcoffset() is None
+    ):
+        raise ReportError("review_process 时间必须包含时区")
+    if implementation_completed_at > first_review_started_at:
+        raise ReportError("Review 不得早于完整实现完成时间")
     serialized = json.dumps(report, ensure_ascii=False).lower()
     forbidden = ("app_secret", "tenant_access_token", "authorization: bearer")
     if any(marker in serialized for marker in forbidden):
@@ -136,13 +180,22 @@ def build_card(report: dict[str, Any]) -> dict[str, Any]:
             "**Git 操作：** 未 commit、未 push、未 merge、未发布",
         ),
         ("选择原因", text(report["selection_reason"])),
+        ("需求说明", text(report["plain_language_summary"])),
+        (
+            "复杂度与验证策略",
+            f"**分级：** {text(report['complexity_tier'])}\n"
+            f"**理由：** {text(report['complexity_reason'])}\n"
+            f"**Review 数量：** {len(report['reviews'])}\n"
+            f"**Review 轮次：** {report['review_rounds']}\n"
+            "**Review 时机：** 完整候选实现与初测完成后",
+        ),
         ("实施必要性核验", bullet_list([
             {"status": report["necessity_assessment"]["status"], "reason": report["necessity_assessment"].get("reason", "")},
             *report["necessity_assessment"]["evidence"],
         ])),
         ("修改内容", bullet_list(report["changes"])),
         ("验证结果", bullet_list(report["tests"])),
-        ("三路 Review", bullet_list(report["reviews"])),
+        (f"Review 结果（{len(report['reviews'])} 路）", bullet_list(report["reviews"])),
         ("残余风险", bullet_list(report["residual_risks"])),
         ("待确认", text(report["next_action"])),
     ]

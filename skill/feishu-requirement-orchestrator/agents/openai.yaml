@@ -1,4 +1,4 @@
 interface:
-  display_name: "飞书需求自动执行"
-  short_description: "批量分析并确认飞书需求，编排代码实施、三路审查和群确认"
-  default_prompt: "Use $feishu-requirement-orchestrator to analyze all configured Feishu requirement candidates, present one batch for user confirmation, and process the highest-ranked approved necessary item."
+  display_name: "软件需求自动执行"
+  short_description: "接收直接描述或飞书需求，按复杂度编排实施、审查和群确认"
+  default_prompt: "Use $feishu-requirement-orchestrator to process the software requirement I describe directly or requirements from my configured Feishu table."

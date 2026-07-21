@@ -1,6 +1,12 @@
-# 三路 Review 标准
+# 分级 Review 标准
 
-三个 Reviewer 必须独立工作、只读审查，并按严重度从高到低返回发现。每条发现包含严重度、文件、行号、触发条件、实际影响和建议。不要只给风格偏好。
+所有 Reviewer 必须只读审查，并按严重度从高到低返回发现。每条发现包含严重度、文件、行号、触发条件、实际影响和建议。不要只给风格偏好。
+
+Reviewer 只能在 `review_gate.py start` 成功后启动。审查对象必须是主 Agent 已完成全部验收项并通过初测后的同一份完整候选 diff。禁止实现前的 Design Review，禁止按文件或局部改动反复 Review。Reviewer 运行期间主 Agent 不得修改候选文件。
+
+## Fast 综合 Reviewer
+
+由一个 Reviewer 在一次审查中合并检查下列“需求与功能”“测试与回归”“质量与安全”三部分。不要为了形式拆成三个 Agent。发现高严重度问题或实际改动超出 fast 范围时，通知主 Agent 重新分级。
 
 ## Reviewer 1：需求与功能
 
@@ -23,3 +29,19 @@
 ## 输出
 
 有问题时输出结构化 findings；没有问题时明确写 `findings: []`，并列出残余风险和未运行的检查。Reviewer 不得修改代码、创建分支、提交或发送飞书消息。
+
+主 Agent 必须等待本轮所有 Reviewer 返回后一次性生成：
+
+```json
+{
+  "reviews": [
+    {"role": "functionality", "findings": []},
+    {"role": "testing", "findings": []},
+    {"role": "quality-security", "findings": []}
+  ]
+}
+```
+
+首轮 `fast` 必须收齐 1 个综合结果，`standard` 和 `strict` 必须收齐 3 个独立结果。`collect` 成功前不得修复任何发现；成功后集中修复，不按 Reviewer 返回顺序边审边改。
+
+`standard` 和 `strict` 使用三个独立 Reviewer。`standard` 默认一轮；`strict` 最多两轮，第二轮只复核高严重度修复及直接受影响范围，不重新做无差别全仓审查。

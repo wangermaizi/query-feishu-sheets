@@ -3,12 +3,13 @@
 ## 目录
 
 - [需求字段](#需求字段)
+- [手动需求输入](#手动需求输入)
 - [评估文件](#评估文件)
 - [运行配置](#运行配置)
 
 ## 需求字段
 
-通过 `orchestrator.json` 将实际飞书列名映射为以下逻辑字段：
+飞书模式通过 `orchestrator.json` 将实际列名映射为以下逻辑字段；手动模式把用户描述整理为相同结构：
 
 | 逻辑字段 | 必需 | 说明 |
 | --- | --- | --- |
@@ -25,6 +26,28 @@
 
 缺失 `id`、`title`、`description`、`acceptance_criteria` 或有效仓库路径时设为 `eligible: false`。
 
+## 手动需求输入
+
+`manual_requirement.py` 接受单条需求对象，或包含多条需求的 `requirements` 数组：
+
+```json
+{
+  "requirements": [
+    {
+      "title": "回款金额异常提醒",
+      "description": "回款金额超过最新应收金额时提醒用户",
+      "acceptance_criteria": ["列表显示异常提醒", "用户可以定位错误记录"],
+      "project_name": "应收系统",
+      "repository": "D:\\workspace\\receivables",
+      "priority": "P2",
+      "references": []
+    }
+  ]
+}
+```
+
+`title`、`description`、`acceptance_criteria`、`project_name` 和 `repository` 必填。`repository` 必须是已存在的绝对目录。输出补充 `id`、`source_type: manual`、`source_fingerprint` 和保留原始输入的 `source`。没有明确验收标准时由 Codex生成草稿，并在批量确认中明确标注供用户修正；脚本不接受空验收标准。
+
 ## 评估文件
 
 ```json
@@ -33,6 +56,7 @@
     {
       "id": "REQ-1024",
       "title": "示例需求",
+      "plain_language_summary": "现状：系统会重复处理已完成需求。影响：用户可能看到重复结果。目标：已处理需求不再进入执行队列。示例：REQ-1024 完成后，第二天查询不会再次选中它。",
       "priority": "P1",
       "impact": 4,
       "urgency": 3,
@@ -47,7 +71,9 @@
 }
 ```
 
-`impact`、`urgency`、`ease`、`risk` 均为 1 到 5 的整数。排序首先使用 P0 至 P3，其次依次考虑可实现容易度、影响、紧急度和风险。原始飞书记录放在 `source`，不得丢失空字段。
+`impact`、`urgency`、`ease`、`risk` 均为 1 到 5 的整数。排序首先使用 P0 至 P3，其次依次考虑可实现容易度、影响、紧急度和风险。原始飞书记录或手动输入放在 `source`，不得丢失空字段。
+
+`plain_language_summary` 是必填非空字符串。按“现状、问题或用户影响、期望结果”组织；复杂场景再提供一个简单例子。它用于帮助非技术用户理解需求，不替代 `source` 中的原始需求、后续技术证据或必要性结论。
 
 排序后的候选在代码只读核验阶段生成必要性结果：
 
