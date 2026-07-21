@@ -5,6 +5,7 @@
 ```json
 {
   "requirement_id": "REQ-1024",
+  "project_name": "OA",
   "title": "示例需求",
   "status": "completed",
   "selection_reason": "高优先级且实现路径明确",
@@ -30,3 +31,5 @@
 ```
 
 `status` 可为 `completed`、`blocked` 或 `failed`。不得包含密钥、access token、Authorization 请求头或完整凭证配置。报告应说明未 commit、未 push、未 merge、未发布。
+
+`project_name` 必须是用户可识别的业务项目名。卡片标题生成格式为 `【project_name｜requirement_id】title`；不得只显示需求标题，也不得从目录名自行推断项目名。

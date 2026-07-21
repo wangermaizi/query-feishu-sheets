@@ -14,12 +14,21 @@ if (-not $dist.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) 
 }
 
 uv run pytest
+if ($LASTEXITCODE -ne 0) {
+    throw "Tests failed"
+}
 $env:PYTHONUTF8 = "1"
 uv run $validator $source
+if ($LASTEXITCODE -ne 0) {
+    throw "Distributable Skill validation failed"
+}
 $repoSkills = Join-Path $root ".agents\skills"
 if (Test-Path -LiteralPath $repoSkills) {
     Get-ChildItem -LiteralPath $repoSkills -Directory | ForEach-Object {
         uv run $validator $_.FullName
+        if ($LASTEXITCODE -ne 0) {
+            throw "Repository Skill validation failed: $($_.FullName)"
+        }
     }
 }
 

@@ -59,6 +59,7 @@ def load_settings() -> dict[str, Any]:
 def validate_report(report: dict[str, Any]) -> dict[str, Any]:
     required_strings = (
         "requirement_id",
+        "project_name",
         "title",
         "status",
         "selection_reason",
@@ -122,10 +123,12 @@ def bullet_list(values: list[Any]) -> str:
 
 def build_card(report: dict[str, Any]) -> dict[str, Any]:
     status_template = {"completed": "green", "blocked": "orange", "failed": "red"}
+    card_title = f"【{report['project_name']}｜{report['requirement_id']}】{report['title']}"
     elements: list[dict[str, Any]] = []
     sections = [
         (
             "执行信息",
+            f"**项目：** {text(report['project_name'])}\n"
             f"**需求 ID：** {text(report['requirement_id'])}\n"
             f"**状态：** {text(report['status'])}\n"
             f"**仓库：** {text(report['repository'])}\n"
@@ -156,7 +159,7 @@ def build_card(report: dict[str, Any]) -> dict[str, Any]:
         "config": {"wide_screen_mode": True},
         "header": {
             "template": status_template[report["status"]],
-            "title": {"tag": "plain_text", "content": text(report["title"], 80)},
+            "title": {"tag": "plain_text", "content": text(card_title, 80)},
         },
         "elements": elements,
     }

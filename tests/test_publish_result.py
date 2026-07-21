@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skill" / "feishu-requirement-orchestrator" / "scripts"
@@ -17,6 +19,7 @@ SPEC.loader.exec_module(publish_result)
 def report():
     return {
         "requirement_id": "REQ-1",
+        "project_name": "OA",
         "title": "Test requirement",
         "status": "completed",
         "selection_reason": "P1 and implementable",
@@ -55,3 +58,12 @@ def test_card_states_no_git_side_effects():
     )
     assert "未 commit、未 push、未 merge、未发布" in content
     assert "实施必要性核验" in content
+    assert card["header"]["title"]["content"] == "【OA｜REQ-1】Test requirement"
+    assert "**项目：** OA" in content
+
+
+def test_project_name_is_required_for_group_title():
+    payload = report()
+    del payload["project_name"]
+    with pytest.raises(publish_result.ReportError, match="project_name"):
+        publish_result.validate_report(payload)

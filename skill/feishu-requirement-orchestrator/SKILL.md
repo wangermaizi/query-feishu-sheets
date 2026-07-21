@@ -31,6 +31,8 @@ description: Read software requirements from a configured Feishu Sheet or Bitabl
 
 首次使用时根据 [requirement-schema.md](references/requirement-schema.md) 创建配置草稿，隐藏密钥后展示非敏感配置，获得用户确认再保存。覆盖现有配置前再次确认。
 
+同时确认用于群消息标题的项目名。优先映射需求表中的项目字段；同一 profile 固定属于一个项目时可设置 `default_project_name`。项目名不明确时必须询问用户，不得从仓库目录名、远程仓库名或需求标题猜测。
+
 ### 首次配置筛选条件
 
 运行 `inspect` 取得真实表头后，必须暂停并明确询问用户“应该通过哪些条件过滤出待处理需求”，不得自行推断后直接保存。展示可用字段，并逐项确认：
@@ -145,6 +147,8 @@ uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --status in_progres
 ## 发布最终结果
 
 生成符合 [result-schema.md](references/result-schema.md) 的 JSON 报告。先预览并保留哈希，再立即向预授权群发布同一报告；这是用户对固定群的持续授权，不需要每次再次询问。报告变化导致哈希不一致时重新生成预览，禁止绕过检查。
+
+报告必须包含非空 `project_name`。飞书卡片标题固定使用 `【project_name｜requirement_id】title`，确保用户在消息列表中无需展开卡片即可识别项目和需求。项目名无法从已确认字段或 `default_project_name` 唯一确定时，发布前暂停询问用户。
 
 ```powershell
 uv run <skill-dir>\scripts\publish_result.py preview --report "报告绝对路径"

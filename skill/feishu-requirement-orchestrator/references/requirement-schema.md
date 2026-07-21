@@ -16,6 +16,7 @@
 | `title` | 是 | 需求标题 |
 | `description` | 是 | 完整需求描述 |
 | `acceptance_criteria` | 是 | 可验证的验收标准 |
+| `project_name` | 发布时必需 | 群消息中显示的业务项目名；也可由配置提供默认值 |
 | `repository` | 条件必需 | 本地绝对路径；也可由配置提供默认值 |
 | `priority` | 否 | P0、P1、P2、P3；缺失时由 Agent 评估 |
 | `deadline` | 否 | 用于紧急度评估 |
@@ -74,6 +75,7 @@
     "title": "需求标题",
     "description": "需求描述",
     "acceptance_criteria": "验收标准",
+    "project_name": "项目名称",
     "repository": "代码目录",
     "priority": "优先级",
     "deadline": "期望时间",
@@ -81,6 +83,7 @@
     "references": "附件"
   },
   "default_repository": null,
+  "default_project_name": "OA",
   "selection": {"max_items": 1},
   "runtime": {
     "model": "gpt-5.6",
