@@ -32,6 +32,7 @@ def test_two_file_local_change_uses_fast_policy():
         "test_scope": "focused",
         "reviewer_count": 1,
         "review_round_limit": 1,
+        "review_timeout_minutes": 10,
     }
 
 
@@ -42,6 +43,7 @@ def test_more_than_two_files_uses_standard_policy():
 
     assert result["tier"] == "standard"
     assert result["policy"]["reviewer_count"] == 3
+    assert result["policy"]["review_timeout_minutes"] == 15
 
 
 def test_high_risk_signal_forces_strict_policy():
@@ -51,6 +53,7 @@ def test_high_risk_signal_forces_strict_policy():
 
     assert result["tier"] == "strict"
     assert result["policy"]["review_round_limit"] == 2
+    assert result["policy"]["review_timeout_minutes"] == 20
 
 
 def test_large_file_scope_forces_strict_policy():

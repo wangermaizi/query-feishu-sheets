@@ -18,10 +18,16 @@ import run_state
 
 
 POLICIES = {
-    "fast": {"reviewer_count": 1, "round_limit": 1},
-    "standard": {"reviewer_count": 3, "round_limit": 1},
-    "strict": {"reviewer_count": 3, "round_limit": 2},
+    "fast": {"reviewer_count": 1, "round_limit": 1, "timeout_seconds": 600},
+    "standard": {"reviewer_count": 3, "round_limit": 1, "timeout_seconds": 900},
+    "strict": {"reviewer_count": 3, "round_limit": 2, "timeout_seconds": 1200},
 }
+REVIEW_ROLES = {
+    "fast": ("combined",),
+    "standard": ("functionality", "testing", "quality-security"),
+    "strict": ("functionality", "testing", "quality-security"),
+}
+RETRY_REASONS = {"timeout", "failed", "exited"}
 REREVIEW_REASONS = {"high_severity", "public_contract", "scope_upgrade"}
 
 
@@ -29,8 +35,24 @@ class ReviewGateError(ValueError):
     pass
 
 
-def timestamp() -> str:
-    return dt.datetime.now().astimezone().isoformat(timespec="seconds")
+def current_time() -> dt.datetime:
+    return dt.datetime.now().astimezone()
+
+
+def timestamp(value: dt.datetime | None = None) -> str:
+    return (value or current_time()).isoformat(timespec="seconds")
+
+
+def parse_timestamp(value: Any, label: str) -> dt.datetime:
+    if not isinstance(value, str):
+        raise ReviewGateError(f"{label} 无效")
+    try:
+        parsed = dt.datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ReviewGateError(f"{label} 无效") from exc
+    if parsed.tzinfo is None:
+        raise ReviewGateError(f"{label} 缺少时区")
+    return parsed
 
 
 def load_entry(
@@ -140,7 +162,11 @@ def prepare(entry: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     return entry
 
 
-def start(entry: dict[str, Any]) -> dict[str, Any]:
+def start(
+    entry: dict[str, Any],
+    reviewer_roles: list[str] | None = None,
+    now: dt.datetime | None = None,
+) -> dict[str, Any]:
     if entry.get("review_phase") != "review_ready":
         raise ReviewGateError("必须先 prepare 完整候选实现，才能启动 Reviewer")
     policy = policy_for(entry)
@@ -148,14 +174,106 @@ def start(entry: dict[str, Any]) -> dict[str, Any]:
     if started >= policy["round_limit"]:
         raise ReviewGateError("已达到 Review 轮次上限")
     round_number = started + 1
+    allowed_roles = REVIEW_ROLES[entry["complexity_tier"]]
+    if reviewer_roles:
+        roles = require_strings(reviewer_roles, "reviewer-role")
+        if len(set(roles)) != len(roles):
+            raise ReviewGateError("reviewer-role 不能重复")
+        unknown = sorted(set(roles) - set(allowed_roles))
+        if unknown:
+            raise ReviewGateError("Reviewer 角色无效: " + ", ".join(unknown))
+    else:
+        roles = list(allowed_roles)
+    if round_number == 1 and set(roles) != set(allowed_roles):
+        raise ReviewGateError("首轮必须启动全部必需 Reviewer 角色")
+    if round_number > 1 and not 1 <= len(roles) <= len(allowed_roles):
+        raise ReviewGateError("定向复审必须启动 1 到 3 个 Reviewer 角色")
+    started_now = now or current_time()
+    deadline = started_now + dt.timedelta(seconds=policy["timeout_seconds"])
     history = list(entry.get("review_started_at", []))
-    history.append(timestamp())
+    history.append(timestamp(started_now))
     entry.update(
         {
             "review_phase": "reviewing",
             "review_rounds_started": round_number,
             "current_review_round": round_number,
             "review_started_at": history,
+            "expected_review_roles": roles,
+            "review_attempts": {role: 1 for role in roles},
+            "review_role_deadlines": {role: timestamp(deadline) for role in roles},
+            "review_timeout_seconds": policy["timeout_seconds"],
+            "review_retry_history": [],
+            "review_blocked_role": None,
+            "review_blocked_reason": None,
+        }
+    )
+    return entry
+
+
+def retry(
+    entry: dict[str, Any],
+    role: str,
+    reason: str,
+    now: dt.datetime | None = None,
+) -> dict[str, Any]:
+    if entry.get("review_phase") != "reviewing":
+        raise ReviewGateError("只有 reviewing 阶段可以替换 Reviewer")
+    if reason not in RETRY_REASONS:
+        raise ReviewGateError("替换原因必须为 timeout、failed 或 exited")
+    roles = entry.get("expected_review_roles")
+    if not isinstance(roles, list) or role not in roles:
+        raise ReviewGateError(f"当前轮次不需要 Reviewer 角色: {role}")
+    attempts = dict(entry.get("review_attempts", {}))
+    attempt = attempts.get(role)
+    if attempt != 1:
+        raise ReviewGateError(f"Reviewer {role} 已用完一次自动替换机会")
+    retry_now = now or current_time()
+    deadlines = dict(entry.get("review_role_deadlines", {}))
+    if reason == "timeout" and retry_now < parse_timestamp(
+        deadlines.get(role), f"Reviewer {role} 截止时间"
+    ):
+        raise ReviewGateError(f"Reviewer {role} 尚未超时")
+    attempts[role] = 2
+    timeout_seconds = int(entry.get("review_timeout_seconds", 0))
+    if timeout_seconds <= 0:
+        raise ReviewGateError("Review 超时策略无效")
+    deadlines[role] = timestamp(
+        retry_now + dt.timedelta(seconds=timeout_seconds)
+    )
+    history = list(entry.get("review_retry_history", []))
+    history.append(
+        {
+            "role": role,
+            "reason": reason,
+            "attempt": 2,
+            "retried_at": timestamp(retry_now),
+        }
+    )
+    entry.update(
+        {
+            "review_attempts": attempts,
+            "review_role_deadlines": deadlines,
+            "review_retry_history": history,
+        }
+    )
+    return entry
+
+
+def block(entry: dict[str, Any], role: str, reason: str) -> dict[str, Any]:
+    if entry.get("review_phase") != "reviewing":
+        raise ReviewGateError("只有 reviewing 阶段可以阻塞 Review")
+    attempts = entry.get("review_attempts")
+    if not isinstance(attempts, dict) or attempts.get(role) != 2:
+        raise ReviewGateError(f"Reviewer {role} 尚未用完自动替换机会")
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+        raise ReviewGateError("阻塞原因不能为空")
+    entry.update(
+        {
+            "review_phase": "review_blocked",
+            "review_blocked_role": role,
+            "review_blocked_reason": normalized_reason,
+            "review_blocked_at": timestamp(),
         }
     )
     return entry
@@ -189,11 +307,19 @@ def collect(entry: dict[str, Any], reviews: list[dict[str, Any]]) -> dict[str, A
     if entry.get("review_phase") != "reviewing":
         raise ReviewGateError("只有 reviewing 阶段可以收集结果")
     round_number = int(entry.get("current_review_round", 0))
-    expected = int(entry.get("expected_reviewers", 0))
-    if round_number == 1 and len(reviews) != expected:
-        raise ReviewGateError(f"首轮必须一次收齐 {expected} 个 Reviewer 结果")
-    if round_number > 1 and not 1 <= len(reviews) <= expected:
-        raise ReviewGateError(f"定向复审必须包含 1 到 {expected} 个 Reviewer 结果")
+    expected_roles = entry.get("expected_review_roles")
+    if not isinstance(expected_roles, list) or not expected_roles:
+        raise ReviewGateError("缺少当前轮次必需 Reviewer 角色")
+    actual_roles = {review["role"] for review in reviews}
+    if actual_roles != set(expected_roles):
+        missing = sorted(set(expected_roles) - actual_roles)
+        extra = sorted(actual_roles - set(expected_roles))
+        details = []
+        if missing:
+            details.append("缺少: " + ", ".join(missing))
+        if extra:
+            details.append("多出: " + ", ".join(extra))
+        raise ReviewGateError("必须一次收齐当前轮次精确角色集合（" + "；".join(details) + "）")
     rounds = list(entry.get("review_results", []))
     rounds.append(
         {
@@ -238,7 +364,9 @@ def complete(entry: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     return entry
 
 
-def status_payload(entry: dict[str, Any]) -> dict[str, Any]:
+def status_payload(
+    entry: dict[str, Any], now: dt.datetime | None = None
+) -> dict[str, Any]:
     started_at = entry.get("review_started_at", [])
     review_results = entry.get("review_results", [])
     first_scope = (
@@ -259,11 +387,27 @@ def status_payload(entry: dict[str, Any]) -> dict[str, Any]:
         )
         is True,
     }
+    status_now = now or current_time()
+    deadlines = entry.get("review_role_deadlines", {})
+    overdue_roles = []
+    if entry.get("review_phase") == "reviewing" and isinstance(deadlines, dict):
+        overdue_roles = sorted(
+            role
+            for role, deadline in deadlines.items()
+            if status_now >= parse_timestamp(deadline, f"Reviewer {role} 截止时间")
+        )
     return {
         "requirement_id": entry.get("requirement_id"),
         "review_phase": entry.get("review_phase"),
         "report_ready": entry.get("review_phase") == "review_complete",
         "review_rounds": entry.get("review_rounds_started", 0),
+        "expected_review_roles": entry.get("expected_review_roles", []),
+        "review_attempts": entry.get("review_attempts", {}),
+        "review_role_deadlines": deadlines,
+        "overdue_review_roles": overdue_roles,
+        "review_retry_history": entry.get("review_retry_history", []),
+        "review_blocked_role": entry.get("review_blocked_role"),
+        "review_blocked_reason": entry.get("review_blocked_reason"),
         "review_process": review_process,
     }
 
@@ -271,7 +415,7 @@ def status_payload(entry: dict[str, Any]) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare", "start", "collect", "complete", "status"):
+    for name in ("prepare", "start", "retry", "block", "collect", "complete", "status"):
         command = commands.add_parser(name)
         command.add_argument("--id", required=True)
         command.add_argument("--repository", required=True)
@@ -280,6 +424,14 @@ def main() -> int:
             command.add_argument("--test-result", action="append", default=[])
             command.add_argument("--candidate-file", action="append", default=[])
             command.add_argument("--rereview-reason", choices=sorted(REREVIEW_REASONS))
+        elif name == "start":
+            command.add_argument("--reviewer-role", action="append", default=[])
+        elif name == "retry":
+            command.add_argument("--role", required=True)
+            command.add_argument("--reason", required=True, choices=sorted(RETRY_REASONS))
+        elif name == "block":
+            command.add_argument("--role", required=True)
+            command.add_argument("--reason", required=True)
         elif name == "collect":
             command.add_argument("--results", required=True, type=Path)
         elif name == "complete":
@@ -306,7 +458,12 @@ def main() -> int:
                     )
                 elif args.command == "start":
                     verify_candidate_unchanged(entry)
-                    entry = start(entry)
+                    entry = start(entry, args.reviewer_role)
+                elif args.command == "retry":
+                    verify_candidate_unchanged(entry)
+                    entry = retry(entry, args.role, args.reason)
+                elif args.command == "block":
+                    entry = block(entry, args.role, args.reason)
                 elif args.command == "collect":
                     verify_candidate_unchanged(entry)
                     entry = collect(entry, read_review_results(args.results))

@@ -247,9 +247,23 @@ uv run <skill-dir>\scripts\review_gate.py prepare --id "REQ-1024" --repository "
 uv run <skill-dir>\scripts\review_gate.py start --id "REQ-1024" --repository "D:\workspace\example"
 ```
 
-`prepare` 会记录候选文件内容快照；`start` 会在快照未变化时才放行。只有 `start` 成功并返回 `review_phase: reviewing` 后才允许创建 Reviewer。按复杂度策略和 [review-rubrics.md](references/review-rubrics.md)：`fast` 启动 1 个综合 Reviewer；`standard` 和 `strict` 同时启动 3 个独立 Reviewer。所有 Reviewer 必须审查同一份完整 diff，只传递需求、全部验收标准、候选文件、完整 diff 和测试结果，不传递预期结论。
+`prepare` 会记录候选文件内容快照；`start` 会在快照未变化时才放行，并为每个角色记录截止时间。只有 `start` 成功并返回 `review_phase: reviewing` 后才允许创建 Reviewer。按复杂度策略和 [review-rubrics.md](references/review-rubrics.md)：`fast` 启动 1 个 `combined` 综合 Reviewer，截止时间为 10 分钟；`standard` 同时启动 `functionality`、`testing`、`quality-security` 三个独立 Reviewer，截止时间为 15 分钟；`strict` 使用相同三角色，截止时间为 20 分钟。所有 Reviewer 必须审查同一份完整 diff，只传递需求、全部验收标准、候选文件、完整 diff 和测试结果，不传递预期结论。
 
-Reviewer 运行期间主 Agent 不得修改文件。必须等待本轮全部 Reviewer 返回，把结果一次性写入同一个 JSON，再通过门禁收集：
+主 Agent 必须监控 Reviewer 状态，不能无限等待。某个 Reviewer 超时、执行失败或异常退出时，只中断该角色，不重启已经正常完成或仍正常运行的 Reviewer；先登记替换，再用同一角色、同一需求、同一验收标准、同一完整 diff、同一测试结果和同一候选快照启动一个替换 Reviewer：
+
+```powershell
+uv run <skill-dir>\scripts\review_gate.py retry --id "REQ-1024" --repository "D:\workspace\example" --role "testing" --reason timeout
+```
+
+每个角色最多自动替换一次。替换后的截止时间从 `retry` 成功时重新按当前复杂度计算；原因为 `timeout` 时门禁只在原截止时间到达后放行，`failed` 或 `exited` 可立即替换。替换 Reviewer 再次超时、失败或退出时，登记阻塞并立即停止等待：
+
+```powershell
+uv run <skill-dir>\scripts\review_gate.py block --id "REQ-1024" --repository "D:\workspace\example" --role "testing" --reason "替换 Reviewer 再次超时"
+```
+
+此时 `review_phase` 必须为 `review_blocked`，向用户说明缺失角色和原因，不得生成成功报告。不得让主 Agent 自审来替代缺失 Reviewer，也不得绕过 `retry` 或 `block` 修改状态。
+
+Reviewer 运行期间主 Agent 不得修改文件。除上述有界替换外，必须等待本轮全部 Reviewer 返回，把精确角色集合一次性写入同一个 JSON，再通过门禁收集：
 
 ```powershell
 uv run <skill-dir>\scripts\review_gate.py collect --id "REQ-1024" --repository "D:\workspace\example" --results "本轮全部Review结果JSON绝对路径"
@@ -263,7 +277,7 @@ uv run <skill-dir>\scripts\review_gate.py collect --id "REQ-1024" --repository "
 uv run <skill-dir>\scripts\review_gate.py complete --id "REQ-1024" --repository "D:\workspace\example" --resolution-summary "已集中处理全部成立问题" --test-result "受影响测试通过"
 ```
 
-`fast` 和 `standard` 固定一轮。只有高严重度修复、公共契约变化或范围升级时，先重新分级为 `strict`，再用 `--request-rereview high_severity|public_contract|scope_upgrade` 申请第二轮；第二轮只邀请受影响 Reviewer，不重新全量审查。准备定向复审时再次运行 `prepare` 并传相同的 `--rereview-reason`。`strict` 最多两轮，达到上限后把未解决问题列为阻塞或残余风险。不得用 Reviewer 的结论替代实际验证。
+`fast` 和 `standard` 固定一轮。只有高严重度修复、公共契约变化或范围升级时，先重新分级为 `strict`，再用 `--request-rereview high_severity|public_contract|scope_upgrade` 申请第二轮；第二轮只邀请受影响 Reviewer，不重新全量审查。准备定向复审时再次运行 `prepare` 并传相同的 `--rereview-reason`，随后在 `start` 中为每个受影响角色传一次 `--reviewer-role`。`strict` 最多两轮，达到上限后把未解决问题列为阻塞或残余风险。不得用 Reviewer 的结论替代实际验证。
 
 ## 发布最终结果
 

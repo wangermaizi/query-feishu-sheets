@@ -32,16 +32,19 @@ POLICIES = {
         "test_scope": "focused",
         "reviewer_count": 1,
         "review_round_limit": 1,
+        "review_timeout_minutes": 10,
     },
     "standard": {
         "test_scope": "related",
         "reviewer_count": 3,
         "review_round_limit": 1,
+        "review_timeout_minutes": 15,
     },
     "strict": {
         "test_scope": "broad",
         "reviewer_count": 3,
         "review_round_limit": 2,
+        "review_timeout_minutes": 20,
     },
 }
 

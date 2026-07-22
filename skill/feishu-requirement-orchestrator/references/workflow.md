@@ -21,7 +21,7 @@
 
 状态以仓库范围和需求 ID 共同作为内部键，并保留用户可见的 `requirement_id`。不同仓库允许并行；同一 worktree 禁止并行；同一 Git 仓库的不同 worktree 仅在用户明确确认后允许并行。状态修改必须通过 `run_state.py`，不得直接编辑 `state.json`，以保留进程锁和原子写入。
 
-`in_progress` 内部使用 Review 阶段门禁：`implementation` → `review_ready` → `reviewing` → `review_findings_ready` → `review_complete`。需要严格档定向复审时，在集中修复后进入 `review_fixes`，重新准备完整修复候选，再进入第二轮。不得跳过阶段、实现前启动 Reviewer，或在 Reviewer 尚未全部返回时修改代码。
+`in_progress` 内部使用 Review 阶段门禁：`implementation` → `review_ready` → `reviewing` → `review_findings_ready` → `review_complete`。需要严格档定向复审时，在集中修复后进入 `review_fixes`，重新准备完整修复候选，再进入第二轮。Reviewer 替换后再次超时、失败或退出则从 `reviewing` 进入终止等待的 `review_blocked`。不得跳过阶段、实现前启动 Reviewer，或在 Reviewer 尚未全部返回时修改代码。
 
 ## 每日触发
 
@@ -64,6 +64,7 @@
 - 验收标准逐项核对；
 - 相关检查已执行或清楚说明无法执行的原因；
 - 分级要求的 Reviewer 均已返回：`fast` 为一个综合 Reviewer，`standard` 和 `strict` 为三个独立 Reviewer；
+- 每个返回结果的角色与门禁要求精确匹配；`review_blocked` 或缺失任何角色时不得生成成功报告；
 - 成立的高严重度问题已修复或明确列为阻塞；
 - 当前 diff 只包含需求相关修改以及原有用户修改。
 - `review_gate.py status` 返回 `review_phase: review_complete`，且实现完成时间不晚于首次 Review 开始时间；
