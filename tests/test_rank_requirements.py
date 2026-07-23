@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "skill" / "feishu-requirement-orchestrator" / "scripts" / "rank_requirements.py"
+SCRIPT = ROOT / "plugin" / "feishu-codex-orchestrator" / "skills" / "feishu-requirement-orchestrator" / "scripts" / "rank_requirements.py"
 SPEC = importlib.util.spec_from_file_location("rank_requirements", SCRIPT)
 assert SPEC and SPEC.loader
 rank_requirements = importlib.util.module_from_spec(SPEC)

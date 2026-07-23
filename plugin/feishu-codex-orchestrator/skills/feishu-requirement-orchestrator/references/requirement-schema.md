@@ -6,6 +6,7 @@
 - [手动需求输入](#手动需求输入)
 - [评估文件](#评估文件)
 - [运行配置](#运行配置)
+- [从旧查询配置生成](#从旧查询配置生成)
 
 ## 需求字段
 
@@ -25,6 +26,12 @@
 | `references` | 否 | 附件、截图或链接 |
 
 缺失 `id`、`title`、`description`、`acceptance_criteria` 或有效仓库路径时设为 `eligible: false`。
+
+## 从旧查询配置生成
+
+用户已有 `query-feishu-sheets` 配置时，把旧配置作为新配置草稿的数据源，不做目录级迁移。自动复用 profile 中已经保存的 `document_url`、`credential`、`default_sheet` / `default_table`、`default_view`、`range`、`filters`、`output_columns`、`display_name`、`aliases`、`description` 和非敏感 `delivery` 字段。先运行 `legacy_profile_draft.py`，展示脱敏草稿和 `missing_fields`；只询问缺失内容。
+
+旧 profile 通常没有代码仓库配置。不要因此重新询问表格链接、筛选条件或机器人名称，只补齐 `default_project_name` 或 `profile_routes.<profile_id>.repositories`。旧 credential 通过名称和 App ID 核对；用户确认复用后在不输出 App Secret 的情况下生成目标凭证配置。任何同名冲突都先展示非敏感差异并确认，不自动覆盖。
 
 ## 手动需求输入
 
@@ -112,7 +119,7 @@
   "default_project_name": "OA",
   "selection": {"max_items": 1},
   "runtime": {
-    "model": "gpt-5.6",
+    "model": "gpt-5.6-sol",
     "reasoning_effort": "ultra",
     "fail_on_unsupported": true
   },
@@ -121,6 +128,40 @@
     "chat_id": "oc_xxx",
     "chat_name": "需求确认群",
     "auto_publish": true
+  },
+  "gateway": {
+    "enabled": true,
+    "credential": "requirement-bot",
+    "allowed_chat_ids": ["oc_xxx"],
+    "admin_open_ids": ["ou_admin"],
+    "require_group_mention": true,
+    "turn_timeout_minutes": 180,
+    "network_access": false,
+    "codex_path": "C:\\path\\to\\codex.exe",
+    "uv_path": "C:\\path\\to\\uv.exe",
+    "chat_default_profiles": {},
+    "profile_routes": {
+      "product-requirements": {
+        "repositories": [
+          {
+            "id": "oas",
+            "display_name": "OAS",
+            "aliases": ["后台"],
+            "description": "入职管理后台",
+            "project_name": "入职管理",
+            "path": "D:\\workspace\\oas"
+          },
+          {
+            "id": "preboard",
+            "display_name": "Preboard",
+            "aliases": ["入职端"],
+            "description": "新员工入职端",
+            "project_name": "入职管理",
+            "path": "D:\\workspace\\preboard"
+          }
+        ]
+      }
+    }
   }
 }
 ```
@@ -135,6 +176,8 @@
   "display_name": "产品研发需求表",
   "aliases": ["研发需求", "产品需求", "研发表"],
   "description": "产品和研发团队待开发的软件需求",
+  "default_project_name": "OA",
+  "default_repository": "D:\\workspace\\oas",
   "credential": "requirement-bot",
   "document_url": "https://example.feishu.cn/base/token",
   "default_table": "需求池",
@@ -146,6 +189,10 @@
 ```
 
 `aliases` 不能替代唯一 `profile_id`；不同 profile 可以出现语义相近别名，此时必须由用户选择。
+
+`gateway.allowed_chat_ids` 是机器人入站授权边界，不能因为机器人已加入其他群就自动扩大。新需求由发起人的飞书 `open_id` 控制，`admin_open_ids` 可增加管理员。一张需求表可在 `profile_routes.<profile_id>.repositories` 下配置多个仓库，网关先选择 profile，再根据仓库 ID、显示名、别名、用途和需求语义选择仓库；多候选合理时必须询问。只有一个仓库时可以继续使用 profile 自身的 `default_project_name` 和 `default_repository`。仍缺少有效路径时必须阻塞，不得根据目录名猜测。`chat_default_profiles` 只作为需求表查询模式的无明确表名回退；手动需求存在多个 profile 时先做语义匹配。`codex_path` 和 `uv_path` 可省略并由网关从 PATH 自动发现，只有特殊安装位置才需要配置绝对路径。
+
+启用网关前必须确认飞书应用使用长连接订阅 `im.message.receive_v1`，具备接收 @机器人消息、接收群内引用回复和发送消息的权限。网关不更改需求表，所有 profile 保持只读。
 
 `filters` 默认为必填且不能为空。所有条件按 AND 组合。只有用户在看过风险提示后明确要求读取整张表，才允许使用：
 

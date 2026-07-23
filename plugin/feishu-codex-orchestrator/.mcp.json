@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "feishu-codex-gateway": {
+      "command": "node",
+      "args": ["./scripts/gateway/src/mcp-server.js"]
+    }
+  }
+}

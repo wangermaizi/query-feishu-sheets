@@ -7,7 +7,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "skill" / "feishu-requirement-orchestrator" / "scripts" / "query_sheet.py"
+SCRIPT = ROOT / "plugin" / "feishu-codex-orchestrator" / "skills" / "feishu-requirement-orchestrator" / "scripts" / "query_sheet.py"
 SPEC = importlib.util.spec_from_file_location("query_sheet_filter_policy", SCRIPT)
 assert SPEC and SPEC.loader
 query_sheet = importlib.util.module_from_spec(SPEC)

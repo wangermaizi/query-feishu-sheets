@@ -1,0 +1,28 @@
+{
+  "name": "feishu-codex-orchestrator",
+  "version": "0.5.0",
+  "description": "Connect a Feishu bot to local Codex requirement analysis and implementation workflows.",
+  "author": {
+    "name": "query-feishu-sheets contributors",
+    "url": "https://github.com/wangermaizi/query-feishu-sheets"
+  },
+  "homepage": "https://github.com/wangermaizi/query-feishu-sheets",
+  "repository": "https://github.com/wangermaizi/query-feishu-sheets",
+  "license": "MIT",
+  "keywords": ["feishu", "codex", "requirements", "automation"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Feishu Codex Orchestrator",
+    "shortDescription": "Control local Codex requirement workflows from Feishu.",
+    "longDescription": "Receives Feishu bot mentions and quoted replies, routes requirements to configured repositories, resumes the matching local Codex thread, and returns analysis or execution checkpoints as cards.",
+    "developerName": "query-feishu-sheets contributors",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "配置飞书机器人与本地 Codex 网关。",
+      "查看飞书需求网关和活动任务状态。",
+      "处理我从飞书机器人提交的软件需求。"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

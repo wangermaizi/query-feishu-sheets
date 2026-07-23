@@ -8,7 +8,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "skill" / "feishu-requirement-orchestrator" / "scripts"
+SCRIPTS = ROOT / "plugin" / "feishu-codex-orchestrator" / "skills" / "feishu-requirement-orchestrator" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 SPEC = importlib.util.spec_from_file_location("publish_result", SCRIPTS / "publish_result.py")
 assert SPEC and SPEC.loader

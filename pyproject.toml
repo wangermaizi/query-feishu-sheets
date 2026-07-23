@@ -1,7 +1,7 @@
 [project]
 name = "feishu-requirement-orchestrator"
-version = "0.4.0"
-description = "Build and validate the Feishu requirement orchestration Codex skill"
+version = "0.5.0"
+description = "Build and validate the Feishu Codex orchestration plugin and compatibility skill"
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]

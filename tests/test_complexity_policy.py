@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "skill" / "feishu-requirement-orchestrator" / "scripts" / "complexity_policy.py"
+SCRIPT = ROOT / "plugin" / "feishu-codex-orchestrator" / "skills" / "feishu-requirement-orchestrator" / "scripts" / "complexity_policy.py"
 SPEC = importlib.util.spec_from_file_location("complexity_policy", SCRIPT)
 assert SPEC and SPEC.loader
 complexity_policy = importlib.util.module_from_spec(SPEC)

@@ -7,7 +7,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "skill" / "feishu-requirement-orchestrator" / "scripts" / "branch_name.py"
+SCRIPT = ROOT / "plugin" / "feishu-codex-orchestrator" / "skills" / "feishu-requirement-orchestrator" / "scripts" / "branch_name.py"
 SPEC = importlib.util.spec_from_file_location("branch_name", SCRIPT)
 assert SPEC and SPEC.loader
 branch_name = importlib.util.module_from_spec(SPEC)

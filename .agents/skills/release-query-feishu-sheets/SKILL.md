@@ -1,6 +1,6 @@
 ---
 name: release-query-feishu-sheets
-description: Release the query-feishu-sheets repository to GitHub by analyzing current changes, generating a Chinese user-facing changelog that becomes the GitHub Release body, choosing and creating the next semantic version tag, committing and pushing main, pushing the tag, and confirming that the Build Skill GitHub Actions workflow has started without waiting for its result. Use when the user says 部署、发布、发版、上线新版本, or asks to tag and ship this repository.
+description: Release the query-feishu-sheets Codex Plugin and compatibility Skill to GitHub by analyzing current changes, generating a Chinese user-facing changelog that becomes the GitHub Release body, synchronizing all package versions, choosing and creating the next semantic version tag, committing and pushing main, pushing the tag, and confirming that the build workflow has started without waiting for its result. Use when the user says 部署、发布、发版、上线新版本, or asks to tag and ship this repository.
 ---
 
 # 发布 query-feishu-sheets
@@ -38,7 +38,7 @@ description: Release the query-feishu-sheets repository to GitHub by analyzing c
 - 只有修复、文档、测试、构建或内部调整：patch + 1。
 - 用户明确指定版本时优先使用，但必须符合 `vX.Y.Z`、高于已有版本且尚不存在。
 
-同时把 `pyproject.toml` 的 `project.version` 更新为不带 `v` 的版本号，并运行 `uv lock` 更新锁文件。
+同时把 `pyproject.toml` 的 `project.version`、`plugin/feishu-codex-orchestrator/.codex-plugin/plugin.json` 的 `version`、`plugin/feishu-codex-orchestrator/scripts/gateway/package.json` 和 `package-lock.json` 的包版本更新为不带 `v` 的同一版本。运行 `uv lock` 更新 Python 锁文件，运行 `npm install --package-lock-only --omit=optional` 更新 Node 锁文件。版本不一致时不得发布。
 
 ## 4. 写入并验证更新日志
 
@@ -76,7 +76,7 @@ Get-Content "dist\release-notes.md" -Encoding UTF8
 ## 5. 验证并提交
 
 1. 运行 `uv sync --frozen` 和 `.\scripts\build.ps1`。
-2. 确认测试、所有仓库 Skill 校验、ZIP、SHA-256 和当前版本 Release notes 提取均成功。
+2. 确认 Python 与网关测试、依赖审计、所有仓库 Skill 和 Plugin 校验、两个 ZIP、两个 SHA-256 和当前版本 Release notes 提取均成功。
 3. 再次检查 `git diff` 和 `git status --short`，确认没有 `dist/`、凭证或运行状态进入提交。
 4. 使用 `git add --all` 暂存已经检查过的发布范围。
 5. 检查 `git diff --cached` 后提交：`chore(release): vX.Y.Z`。

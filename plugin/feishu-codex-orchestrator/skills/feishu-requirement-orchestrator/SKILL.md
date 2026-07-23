@@ -1,11 +1,11 @@
 ---
 name: feishu-requirement-orchestrator
-description: Accept software requirements directly from the user's message or read them from a configured Feishu Sheet or Bitable, assess and rank them, verify from repository evidence whether they are already implemented or still necessary, classify implementation complexity, implement the highest-ranked necessary item after an explicit branch-choice checkpoint, apply complexity-proportional testing and review, and post the final reviewed result to a pre-authorized Feishu group. Use for directly described requirements, scheduled Feishu requirement processing, or when the user asks to analyze, execute, review, or report software requirements.
+description: Accept software requirements directly, from a configured Feishu Sheet or Bitable, or through the feishu-codex-gateway bot channel; route them to a configured repository, assess whether they are implemented or still necessary, wait for explicit analysis and branch confirmation, implement with complexity-proportional testing and review, and return the reviewed result. Use for directly described requirements, scheduled Feishu processing, Feishu bot turns, or requests to analyze, execute, review, or report software requirements.
 ---
 
 # 软件需求自动执行
 
-接收用户直接描述的需求，或使用内置脚本读取飞书需求，并管理分析、实施与结果发布。先读 [workflow.md](references/workflow.md)；处理需求结构或字段映射时读 [requirement-schema.md](references/requirement-schema.md)；开始 Review 前读 [review-rubrics.md](references/review-rubrics.md)。始终通过 `uv run` 执行 Python 脚本。
+接收用户直接描述的需求，或使用内置脚本读取飞书需求，并管理分析、实施与结果发布。先读 [workflow.md](references/workflow.md)；处理需求结构或字段映射时读 [requirement-schema.md](references/requirement-schema.md)；开始 Review 前读 [review-rubrics.md](references/review-rubrics.md)；输入来自 `feishu-codex-gateway` 时读 [bot-channel.md](references/bot-channel.md)；输入包含 Lark Coding Agent Bridge 注入的 `<bridge_context>` 时读 [lark-bridge-channel.md](references/lark-bridge-channel.md)。始终通过 `uv run` 执行 Python 脚本。
 
 ## 强制边界
 
@@ -19,6 +19,7 @@ description: Accept software requirements directly from the user's message or re
 - 飞书需求源保持只读，不回写状态。
 - 只向设置中已明确授权且 `auto_publish: true` 的固定 `chat_id` 自动发送最终结果。发送失败后不得自动重试。
 - 不输出 App Secret、access token 或 Authorization 请求头。
+- 输入来自飞书网关时，只处理 `allowed_chat_ids` 中的群；仅需求发起人或 `admin_open_ids` 可以通过引用回复推进任务。
 
 ## 配置
 
@@ -32,6 +33,24 @@ description: Accept software requirements directly from the user's message or re
 手动需求模式不要求配置飞书凭证或 profile，但仍使用 `orchestrator.json` 中已确认的模型、默认项目、默认仓库和群授权。缺少本次执行所必需的配置时只询问缺失项，不强迫用户初始化需求表。
 
 首次使用时根据 [requirement-schema.md](references/requirement-schema.md) 创建配置草稿，隐藏密钥后展示非敏感配置，获得用户确认再保存。覆盖现有配置前再次确认。
+
+初始化或补充需求表配置前，先查找用户已有的 `query-feishu-sheets` Skill 配置。使用旧 Skill 的 `profile list`、`profile show` 和 `credential list` 获取非敏感信息，不得读取或输出旧 `credentials.json` 内容。找到旧 profile 时，必须复用其中已有的链接、credential 名称、工作表/数据表、视图、范围、筛选条件、输出字段、显示名、别名和已确认群信息生成新配置草稿；不得要求用户重新口述这些参数，也不得把旧目录整体覆盖到新运行目录。
+
+使用脱敏草稿工具生成新结构，不直接保存：
+
+```powershell
+uv run <skill-dir>\scripts\legacy_profile_draft.py --legacy-profiles "<旧 query-feishu-sheets config\profiles.json>" [--legacy-projects-directory "<旧 orchestrator projects 目录>"] [--profile "profile-id"]
+```
+
+只针对输出的 `missing_fields` 询问用户。通常旧查询 profile 缺少 `project_name` 和 `repositories`，此时只询问项目归属、仓库路径、仓库显示名/别名和职责；旧配置已经包含的字段不得重复询问。提供旧项目目录时，还要把 `project_routes_draft` 中已保存的项目名、默认仓库和语义路由合并到顶层仓库路由，不得丢弃项目级配置。`credential_references` 只显示凭证名称，不显示密钥。旧凭证可访问时复用该凭证生成目标凭证配置；保存前展示 App ID 与凭证名称并确认，复制过程不得输出 App Secret。profile、凭证或 `profile_routes` 与目标配置冲突时展示差异并询问覆盖、换名或跳过。只有用户确认完整草稿后才写入新运行目录。
+
+用户要求启用飞书机器人入口时，按 [requirement-schema.md](references/requirement-schema.md) 补充 `gateway` 配置。先确认飞书应用已选择长连接、订阅 `im.message.receive_v1`，并具备接收群内 @机器人消息、接收引用回复所需的群消息权限和发送消息权限。展示 `allowed_chat_ids`、管理员、profile 到项目/仓库映射、模型和超时时间，确认后再运行 Plugin 的 `scripts\Install-Gateway.ps1`。不得静默注册登录自启任务。
+
+网关运行时每条需求对应一个 Codex thread；消息关联由 `gateway-state.json` 保存。引用回复必须通过 `parent_id`、`root_id` 或 `thread_id` 找回任务，不得仅凭回复正文猜测。服务重启时不得自动重跑正在执行的 turn，先标记为中断并让用户明确继续。
+
+网关先区分需求表查询和手动需求。用户要求“获取/读取/查询某需求表的需求”时，由网关在 Codex 沙箱外调用本 Skill 的 `query_sheet.py query`，把只读结果作为 `sheet_query` 交给 Codex；不得把这句话本身创建为手动需求。用户已经描述具体新增、修复或优化内容时使用手动模式，并默认视为一项新需求；profile 只用于项目归属，仓库候选只用于代码路由，不得查询需求表、匹配表内具体记录或绑定已有需求 ID。两种意图都合理时，网关必须通过引用回复卡片让用户选择。手动需求存在多个 profile 时优先按正文语义匹配，不得因群默认 profile 跳过匹配。
+
+机器人任务将“是否已确认代码写入位置”作为独立持久状态。只有用户明确选择当前分支或确认新分支名称后才取得写入授权；执行中通过卡片询问产品决定后，引用回复恢复同一 Codex thread 和原写入授权，不得因为阶段名变为 `question` 而退回只读。
 
 同时确认用于群消息标题的项目名。优先映射需求表中的项目字段；同一 profile 固定属于一个项目时可设置 `default_project_name`。项目名不明确时必须询问用户，不得从仓库目录名、远程仓库名或需求标题猜测。
 
@@ -69,7 +88,7 @@ uv run <skill-dir>\scripts\manual_requirement.py --input "手动需求JSON绝对
 
 脚本会校验项目名、已存在的绝对仓库路径和非空验收标准，并根据 Asia/Shanghai 当天日期及 `state.json` 生成递增 ID。内容指纹与已记录需求完全相同时，优先恢复或说明原需求状态，不得创建新需求；只有用户明确要求作为新需求再次处理时才使用 `--allow-duplicate`。
 
-手动需求不查询或回写飞书，也不要求 profile、字段映射或筛选条件。生成 ID 后与飞书需求共用后续排序、普通语言说明、必要性核验、批量确认、复杂度分级、分支选择、实施、Review 和结果发布流程。写入待确认状态时必须保存原始描述和来源信息，保证恢复后内容完整：
+手动需求默认按新需求处理，不查询或回写飞书，不搜索或匹配需求表中的具体记录，也不要求 profile、字段映射或筛选条件。即使通过 profile 判断项目归属，也不得据此绑定表内已有需求 ID。生成 ID 后与飞书需求共用后续排序、普通语言说明、必要性核验、批量确认、复杂度分级、分支选择、实施、Review 和结果发布流程。写入待确认状态时必须保存原始描述和来源信息，保证恢复后内容完整：
 
 ```powershell
 uv run <skill-dir>\scripts\run_state.py mark --id "MANUAL-20260721-001" --status awaiting_analysis_confirmation --title "回款金额异常提醒" --description "用户直接描述的原始需求" --acceptance-criterion "列表显示异常提醒" --project-name "应收系统" --repository "D:\workspace\receivables" --source-type manual --source-fingerprint "脚本输出的指纹" --batch-id "20260721-001" --rank 1 --proposed-status not_started --reason "尚无实现" --plain-language-summary "现状：...影响：...目标：..."
@@ -305,7 +324,7 @@ uv run <skill-dir>\scripts\run_state.py mark --id "REQ-1024" --repository "D:\wo
 
 Skill 不能自行定时唤醒。每日运行由 Codex Automation 或外部调度器调用本 Skill；直接描述需求和手动调用执行同一状态机。
 
-检查运行环境能否满足 `orchestrator.json` 中的模型与推理强度要求。默认要求 `gpt-5.6` 和 `ultra`；环境无法确认或不支持时明确报告并停止，不静默降级。模型选择属于运行器配置，不写入业务脚本。
+检查运行环境能否满足 `orchestrator.json` 中的模型与推理强度要求。默认要求 `gpt-5.6-sol` 和 `ultra`；环境无法确认或不支持时明确报告并停止，不静默降级。模型选择属于运行器配置，不写入业务脚本。
 
 ## 飞书脚本
 

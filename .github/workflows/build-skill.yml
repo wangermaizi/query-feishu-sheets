@@ -1,4 +1,4 @@
-name: Build Skill
+name: Build Plugin and Skill
 
 on:
   push:
@@ -27,17 +27,26 @@ jobs:
       - name: Install development dependencies
         run: uv sync --frozen
 
-      - name: Test, validate, and package Skill
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: plugin/feishu-codex-orchestrator/scripts/gateway/package-lock.json
+
+      - name: Test, validate, and package Plugin and Skill
         shell: pwsh
         run: .\scripts\build.ps1
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: feishu-requirement-orchestrator-${{ github.sha }}
+          name: feishu-codex-orchestrator-${{ github.sha }}
           path: |
             dist/feishu-requirement-orchestrator.zip
             dist/feishu-requirement-orchestrator.sha256
+            dist/feishu-codex-orchestrator.zip
+            dist/feishu-codex-orchestrator.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -55,7 +64,7 @@ jobs:
       - name: Download packaged Skill
         uses: actions/download-artifact@v4
         with:
-          name: feishu-requirement-orchestrator-${{ github.sha }}
+          name: feishu-codex-orchestrator-${{ github.sha }}
           path: dist
 
       - name: Prepare AI-generated release notes
@@ -77,11 +86,15 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" \
               dist/feishu-requirement-orchestrator.zip \
               dist/feishu-requirement-orchestrator.sha256 \
+              dist/feishu-codex-orchestrator.zip \
+              dist/feishu-codex-orchestrator.sha256 \
               --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
               dist/feishu-requirement-orchestrator.zip \
               dist/feishu-requirement-orchestrator.sha256 \
+              dist/feishu-codex-orchestrator.zip \
+              dist/feishu-codex-orchestrator.sha256 \
               --verify-tag \
               --notes-file dist/release-notes.md \
               --title "$GITHUB_REF_NAME"

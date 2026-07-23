@@ -8,3 +8,7 @@ credentials.json
 orchestrator.json
 state.json
 profiles.json
+node_modules/
+gateway-state.json
+gateway-status.json
+gateway.log*

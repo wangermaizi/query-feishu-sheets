@@ -7,7 +7,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "skill" / "feishu-requirement-orchestrator" / "scripts" / "manual_requirement.py"
+SCRIPT = ROOT / "plugin" / "feishu-codex-orchestrator" / "skills" / "feishu-requirement-orchestrator" / "scripts" / "manual_requirement.py"
 SPEC = importlib.util.spec_from_file_location("manual_requirement", SCRIPT)
 assert SPEC and SPEC.loader
 manual_requirement = importlib.util.module_from_spec(SPEC)

@@ -17,7 +17,7 @@ SPEC.loader.exec_module(validate_skill)
 @pytest.mark.parametrize(
     "skill",
     [
-        ROOT / "skill" / "feishu-requirement-orchestrator",
+        ROOT / "plugin" / "feishu-codex-orchestrator" / "skills" / "feishu-requirement-orchestrator",
         ROOT / ".agents" / "skills" / "release-query-feishu-sheets",
     ],
 )
